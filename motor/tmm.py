@@ -392,4 +392,3 @@ class TMMEngine:
             polarization = Polarization.ELLIPTIC,
             angle        = angle
         )
-    
