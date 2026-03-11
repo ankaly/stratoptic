@@ -238,10 +238,15 @@ class TMMEngine:
         def cos_theta(N: complex) -> complex:
             """
             cos(θ) in medium N via Snell's law.
-            Branch cut: choose root with Im(cos_theta) >= 0
-            so evanescent waves decay (not grow) into the medium.
+
+            From Snell: N_inc·sin(θ_inc) = N·sin(θ)
+            → sin(θ) = sin_inc / N
+            → cos(θ) = sqrt(1 - sin²(θ)) = sqrt(1 - (sin_inc/N)²)
+
+            Branch cut: Im(cos_theta) >= 0 so evanescent waves decay.
             """
-            ct = np.sqrt(complex(N ** 2 - sin_inc ** 2))
+            sin_sq = (sin_inc / N) ** 2
+            ct = np.sqrt(complex(1.0 - sin_sq))
             if ct.imag < 0:
                 ct = -ct
             return ct
@@ -387,3 +392,4 @@ class TMMEngine:
             polarization = Polarization.ELLIPTIC,
             angle        = angle
         )
+    
