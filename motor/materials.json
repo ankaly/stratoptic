@@ -1,0 +1,257 @@
+{
+  "_meta": {
+    "version": "0.1.0",
+    "description": "Stratoptic material database — literature values",
+    "author": "Necmeddin",
+    "institution": "Gazi University, Department of Photonics",
+    "notes": "Fixed n/k values at reference wavelength. Dispersion models to be added in v0.2.",
+    "units": {
+      "wavelength_ref": "nm",
+      "n": "dimensionless",
+      "k": "dimensionless (extinction coefficient)"
+    }
+  },
+
+  "materials": {
+
+    "Air": {
+      "name": "Air",
+      "full_name": "Air (vacuum approximation)",
+      "category": "ambient",
+      "n": 1.0,
+      "k": 0.0,
+      "wavelength_ref": 550,
+      "references": ["Standard value"]
+    },
+
+    "SiO2": {
+      "name": "SiO2",
+      "full_name": "Silicon Dioxide (Fused Silica)",
+      "category": "dielectric",
+      "n": 1.46,
+      "k": 0.0,
+      "wavelength_ref": 550,
+      "references": [
+        "Malitson, I. H. (1965). J. Opt. Soc. Am. 55(10), 1205."
+      ],
+      "notes": "Common AR coating and optical fiber material. Near-zero absorption in visible range."
+    },
+
+    "TiO2": {
+      "name": "TiO2",
+      "full_name": "Titanium Dioxide (Anatase)",
+      "category": "dielectric",
+      "n": 2.35,
+      "k": 0.0,
+      "wavelength_ref": 550,
+      "references": [
+        "Devore, J. R. (1951). J. Opt. Soc. Am. 41(6), 416."
+      ],
+      "notes": "High-index dielectric. Widely used in AR and HR coatings paired with SiO2."
+    },
+
+    "MgF2": {
+      "name": "MgF2",
+      "full_name": "Magnesium Fluoride",
+      "category": "dielectric",
+      "n": 1.38,
+      "k": 0.0,
+      "wavelength_ref": 550,
+      "references": [
+        "Dodge, M. J. (1984). Appl. Opt. 23(12), 1980."
+      ],
+      "notes": "Low-index fluoride. Standard single-layer AR coating on glass."
+    },
+
+    "ZnS": {
+      "name": "ZnS",
+      "full_name": "Zinc Sulfide",
+      "category": "dielectric",
+      "n": 2.35,
+      "k": 0.0,
+      "wavelength_ref": 550,
+      "references": [
+        "Palik, E. D. (1985). Handbook of Optical Constants of Solids. Academic Press."
+      ],
+      "notes": "High-index material for visible and IR coatings."
+    },
+
+    "Ta2O5": {
+      "name": "Ta2O5",
+      "full_name": "Tantalum Pentoxide",
+      "category": "dielectric",
+      "n": 2.09,
+      "k": 0.0,
+      "wavelength_ref": 550,
+      "references": [
+        "Gilo, M., & Croitoru, N. (1996). Thin Solid Films 283(1-2), 84-89."
+      ],
+      "notes": "Used in laser optics and bandpass filters. Good thermal and chemical stability."
+    },
+
+    "Al2O3": {
+      "name": "Al2O3",
+      "full_name": "Aluminum Oxide (Alumina)",
+      "category": "dielectric",
+      "n": 1.63,
+      "k": 0.0,
+      "wavelength_ref": 550,
+      "references": [
+        "Palik, E. D. (1985). Handbook of Optical Constants of Solids. Academic Press."
+      ],
+      "notes": "Hard, durable coating. Used in protective and AR applications."
+    },
+
+    "HfO2": {
+      "name": "HfO2",
+      "full_name": "Hafnium Dioxide",
+      "category": "dielectric",
+      "n": 1.98,
+      "k": 0.0,
+      "wavelength_ref": 550,
+      "references": [
+        "Mehner, A., et al. (2014). Thin Solid Films 574, 1-6."
+      ],
+      "notes": "High-index, high-bandgap oxide. Used in UV and high-power laser coatings."
+    },
+
+    "Si3N4": {
+      "name": "Si3N4",
+      "full_name": "Silicon Nitride",
+      "category": "dielectric",
+      "n": 2.02,
+      "k": 0.0,
+      "wavelength_ref": 550,
+      "references": [
+        "Luke, K., et al. (2015). Opt. Lett. 40(21), 4823."
+      ],
+      "notes": "PECVD-deposited nitride. Common in photonic integrated circuits and solar cells."
+    },
+
+    "Si": {
+      "name": "Si",
+      "full_name": "Silicon (crystalline)",
+      "category": "semiconductor",
+      "n": 3.87,
+      "k": 0.02,
+      "wavelength_ref": 550,
+      "references": [
+        "Green, M. A., & Keevers, M. (1995). Prog. Photovolt. 3(3), 189-192."
+      ],
+      "notes": "Absorbing in visible range. Transparent in near-IR (> 1100 nm)."
+    },
+
+    "Ge": {
+      "name": "Ge",
+      "full_name": "Germanium",
+      "category": "semiconductor",
+      "n": 4.10,
+      "k": 2.33,
+      "wavelength_ref": 550,
+      "references": [
+        "Palik, E. D. (1985). Handbook of Optical Constants of Solids. Academic Press."
+      ],
+      "notes": "High index, strongly absorbing in visible. Transparent in mid-IR. Used in IR optics."
+    },
+
+    "Ag": {
+      "name": "Ag",
+      "full_name": "Silver",
+      "category": "metal",
+      "n": 0.05,
+      "k": 3.43,
+      "wavelength_ref": 550,
+      "references": [
+        "Johnson, P. B., & Christy, R. W. (1972). Phys. Rev. B 6(12), 4370."
+      ],
+      "notes": "High reflectance in visible. Lowest optical losses among metals. Used in mirrors."
+    },
+
+    "Au": {
+      "name": "Au",
+      "full_name": "Gold",
+      "category": "metal",
+      "n": 0.47,
+      "k": 2.83,
+      "wavelength_ref": 550,
+      "references": [
+        "Johnson, P. B., & Christy, R. W. (1972). Phys. Rev. B 6(12), 4370."
+      ],
+      "notes": "High IR reflectance, absorbing in blue-green visible. Used in IR mirrors and plasmonics."
+    },
+
+    "Al": {
+      "name": "Al",
+      "full_name": "Aluminum",
+      "category": "metal",
+      "n": 0.77,
+      "k": 6.08,
+      "wavelength_ref": 550,
+      "references": [
+        "Palik, E. D. (1985). Handbook of Optical Constants of Solids. Academic Press."
+      ],
+      "notes": "Broad-spectrum reflector. UV-reflective. Common mirror coating."
+    },
+
+    "Cr": {
+      "name": "Cr",
+      "full_name": "Chromium",
+      "category": "metal",
+      "n": 3.18,
+      "k": 3.33,
+      "wavelength_ref": 550,
+      "references": [
+        "Palik, E. D. (1985). Handbook of Optical Constants of Solids. Academic Press."
+      ],
+      "notes": "Highly absorbing. Used as adhesion layer and neutral density filter."
+    },
+
+    "Glass_BK7": {
+      "name": "Glass_BK7",
+      "full_name": "Borosilicate Glass (BK7)",
+      "category": "substrate",
+      "n": 1.5168,
+      "k": 0.0,
+      "wavelength_ref": 550,
+      "references": [
+        "Schott AG. (2014). Optical Glass Data Sheet: N-BK7."
+      ],
+      "notes": "Standard optical glass. Ubiquitous substrate in optics labs."
+    },
+
+    "Glass_Soda": {
+      "name": "Glass_Soda",
+      "full_name": "Soda-Lime Glass",
+      "category": "substrate",
+      "n": 1.52,
+      "k": 0.0,
+      "wavelength_ref": 550,
+      "references": [
+        "Standard value — varies slightly by manufacturer."
+      ],
+      "notes": "Common window glass. Lower optical quality than BK7."
+    },
+
+    "Quartz": {
+      "name": "Quartz",
+      "full_name": "Fused Quartz / Fused Silica",
+      "category": "substrate",
+      "n": 1.458,
+      "k": 0.0,
+      "wavelength_ref": 550,
+      "references": [
+        "Malitson, I. H. (1965). J. Opt. Soc. Am. 55(10), 1205."
+      ],
+      "notes": "UV-transparent substrate. High purity, low OH content versions for deep UV."
+    }
+  },
+
+  "gazi_photonics": {
+    "_meta": {
+      "description": "Samples measured at Gazi University Photonics Research Center",
+      "status": "placeholder — to be populated with experimental data",
+      "contact": "Gazi University, Department of Photonics"
+    },
+    "samples": {}
+  }
+}
