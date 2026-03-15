@@ -1,5 +1,5 @@
 """
-Stratoptic - Main Window (v0.4)
+Stratoptic - Main Window (v0.5)
 ========================================================
 Author      : Necmeddin
 Institution : Gazi University, Department of Photonics
@@ -15,8 +15,7 @@ from PyQt6.QtWidgets import (
     QMenuBar, QMenu, QToolBar, QTabWidget, QFileDialog, QMessageBox,
 )
 from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QFont, QAction, QColor, QPalette
-from PyQt6.QtGui import QActionGroup
+from PyQt6.QtGui import QFont, QAction, QColor, QPalette, QActionGroup
 
 sys.path.insert(0, 'motor')
 from rii_db import RIIDatabase
@@ -51,7 +50,6 @@ DARK = {
     "success":      "#30D158",
     "warn":         "#FF9F0A",
     "scrollbar":    "#48484A",
-    # matplotlib
     "fig_bg":       "#1C1C1E",
     "ax_bg":        "#2C2C2E",
     "grid":         "#3A3A3C",
@@ -72,7 +70,6 @@ LIGHT = {
     "success":      "#34C759",
     "warn":         "#FF9500",
     "scrollbar":    "#C7C7CC",
-    # matplotlib
     "fig_bg":       "#F2F2F7",
     "ax_bg":        "#FFFFFF",
     "grid":         "#D1D1D6",
@@ -264,7 +261,6 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
 
 
 def system_is_dark() -> bool:
-    """Detect system dark mode via Qt palette."""
     palette = QApplication.instance().palette()
     bg = palette.color(QPalette.ColorRole.Window)
     return bg.lightness() < 128
@@ -286,11 +282,9 @@ class SpectrumCanvas(FigureCanvas):
         super().__init__(self.fig)
         self.setParent(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self._result = None
+        self._result    = None
         self._structure = None
-        self._show_R = True
-        self._show_T = True
-        self._show_A = True
+        self._show_R = self._show_T = self._show_A = True
         self._init_axes()
 
     def apply_theme(self, theme: dict):
@@ -347,22 +341,18 @@ class SpectrumCanvas(FigureCanvas):
         if show_R:
             ax.plot(wl, result.R * 100, color=self.COLOR_R, lw=1.8,
                     label="Reflectance (R)", zorder=3)
-            ax.fill_between(wl, result.R * 100, alpha=0.08,
-                            color=self.COLOR_R, zorder=2)
+            ax.fill_between(wl, result.R * 100, alpha=0.08, color=self.COLOR_R)
         if show_T:
             ax.plot(wl, result.T * 100, color=self.COLOR_T, lw=1.8,
                     label="Transmittance (T)", zorder=3)
-            ax.fill_between(wl, result.T * 100, alpha=0.08,
-                            color=self.COLOR_T, zorder=2)
+            ax.fill_between(wl, result.T * 100, alpha=0.08, color=self.COLOR_T)
         if show_A:
             ax.plot(wl, result.A * 100, color=self.COLOR_A, lw=1.8,
                     label="Absorbance (A)", zorder=3)
-            ax.fill_between(wl, result.A * 100, alpha=0.08,
-                            color=self.COLOR_A, zorder=2)
+            ax.fill_between(wl, result.A * 100, alpha=0.08, color=self.COLOR_A)
 
         ax.legend(loc="upper right", fontsize=9,
-                  facecolor=self.t["panel_bg"],
-                  labelcolor=self.t["text"],
+                  facecolor=self.t["panel_bg"], labelcolor=self.t["text"],
                   edgecolor=self.t["grid"], framealpha=0.9,
                   handlelength=1.5, handletextpad=0.5)
         ax.set_xlim(wl[0], wl[-1])
@@ -386,6 +376,123 @@ class SpectrumCanvas(FigureCanvas):
     def save(self, path: str):
         self.fig.savefig(path, dpi=300, bbox_inches="tight",
                          facecolor=self.t["fig_bg"])
+
+
+# =============================================================================
+# DISPERSION CANVAS
+# =============================================================================
+
+class DispersionCanvas(FigureCanvas):
+    """n(λ) and k(λ) curves for a selected material."""
+
+    COLOR_N = "#0A84FF"
+    COLOR_K = "#FF453A"
+
+    def __init__(self, theme: dict, parent=None):
+        self.t = theme
+        self.fig = Figure(facecolor=self.t["fig_bg"])
+        super().__init__(self.fig)
+        self.setParent(parent)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._draw_empty()
+
+    def apply_theme(self, theme: dict):
+        self.t = theme
+        self.fig.set_facecolor(self.t["fig_bg"])
+        self.draw()
+
+    def _style_ax(self, ax):
+        ax.tick_params(colors=self.t["muted"], labelsize=9, length=3)
+        ax.grid(True, color=self.t["grid"], alpha=0.8, linewidth=0.6)
+        ax.grid(True, which="minor", color=self.t["grid"], alpha=0.3, linewidth=0.4)
+        ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
+        ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
+        for spine in ax.spines.values():
+            spine.set_edgecolor(self.t["grid"])
+            spine.set_linewidth(0.8)
+
+    def _draw_empty(self):
+        self.fig.clear()
+        self.fig.set_facecolor(self.t["fig_bg"])
+        ax = self.fig.add_subplot(111, facecolor=self.t["fig_bg"])
+        ax.axis("off")
+        ax.text(0.5, 0.5, "Select a material to view dispersion",
+                transform=ax.transAxes, ha="center", va="center",
+                color=self.t["muted"], fontsize=11)
+        self.draw()
+
+    def plot(self, mat, db):
+        """Plot n(λ) and k(λ) for material `mat`."""
+        self.fig.clear()
+        self.fig.set_facecolor(self.t["fig_bg"])
+
+        # Get wavelength range from material
+        try:
+            wl_min, wl_max = mat.wl_range_nm
+            wl_min = max(wl_min, 200)
+            wl_max = min(wl_max, 2500)
+            if wl_max - wl_min < 10:
+                wl_min, wl_max = 200, 1800
+        except Exception:
+            wl_min, wl_max = 200, 1800
+
+        wl = np.linspace(wl_min, wl_max, 500)
+        n_vals = np.array([mat.N_at(w).real for w in wl])
+        k_vals = np.array([mat.N_at(w).imag for w in wl])
+
+        has_k = k_vals.max() > 0.001
+
+        if has_k:
+            gs = gridspec.GridSpec(2, 1, figure=self.fig,
+                                   left=0.10, right=0.92,
+                                   top=0.88, bottom=0.12,
+                                   hspace=0.08)
+            ax_n = self.fig.add_subplot(gs[0], facecolor=self.t["ax_bg"])
+            ax_k = self.fig.add_subplot(gs[1], facecolor=self.t["ax_bg"],
+                                        sharex=ax_n)
+        else:
+            gs = gridspec.GridSpec(1, 1, figure=self.fig,
+                                   left=0.10, right=0.92,
+                                   top=0.88, bottom=0.12)
+            ax_n = self.fig.add_subplot(gs[0], facecolor=self.t["ax_bg"])
+            ax_k = None
+
+        # ── n plot ──────────────────────────────────────────────────
+        self._style_ax(ax_n)
+        ax_n.plot(wl, n_vals, color=self.COLOR_N, lw=2.0, label="n  (real)")
+        ax_n.set_ylabel("n", color=self.t["muted"], fontsize=10)
+        ax_n.yaxis.label.set_color(self.COLOR_N)
+        ax_n.legend(loc="upper right", fontsize=9,
+                    facecolor=self.t["panel_bg"], labelcolor=self.t["text"],
+                    edgecolor=self.t["grid"], framealpha=0.9)
+        ax_n.set_xlim(wl[0], wl[-1])
+        if has_k:
+            ax_n.tick_params(labelbottom=False)
+
+        # ── k plot ──────────────────────────────────────────────────
+        if ax_k is not None:
+            self._style_ax(ax_k)
+            ax_k.plot(wl, k_vals, color=self.COLOR_K, lw=2.0, label="k  (extinction)")
+            ax_k.set_ylabel("k", color=self.t["muted"], fontsize=10)
+            ax_k.yaxis.label.set_color(self.COLOR_K)
+            ax_k.set_xlabel("Wavelength (nm)", color=self.t["muted"],
+                             fontsize=10, labelpad=6)
+            ax_k.legend(loc="upper right", fontsize=9,
+                        facecolor=self.t["panel_bg"], labelcolor=self.t["text"],
+                        edgecolor=self.t["grid"], framealpha=0.9)
+            ax_k.set_xlim(wl[0], wl[-1])
+        else:
+            ax_n.set_xlabel("Wavelength (nm)", color=self.t["muted"],
+                             fontsize=10, labelpad=6)
+
+        # ── Info line ───────────────────────────────────────────────
+        pages = db.list_pages(mat.name)
+        page_str = pages[0][0] if pages else "built-in"
+        title = (f"{mat.name}   ·   {page_str}   ·   "
+                 f"λ: {wl_min:.0f}–{wl_max:.0f} nm")
+        self.fig.suptitle(title, color=self.t["muted"], fontsize=9,
+                          x=0.5, y=0.97, ha="center")
+        self.draw()
 
 
 # =============================================================================
@@ -429,10 +536,10 @@ class StackCanvas(FigureCanvas):
             return (self.t["input_bg"], 0.8)
         try:
             k = mat.N_at(550).imag
-            if k > 0.1:  # metal
-                return ("#4A3A0A" if self.t == DARK else "#FFF3CD", 0.9)
-            else:         # dielectric
-                return ("#0A4A7A" if self.t == DARK else "#D0E8FF", 0.9)
+            if k > 0.1:
+                return ("#4A3A0A" if self.t is DARK else "#FFF3CD", 0.9)
+            else:
+                return ("#0A4A7A" if self.t is DARK else "#D0E8FF", 0.9)
         except Exception:
             return (self.t["input_bg"], 0.9)
 
@@ -535,7 +642,7 @@ class StratopticWindow(QMainWindow):
         self.db = RIIDatabase("data/rii_db")
         self._last_result    = None
         self._last_structure = None
-        self._theme_mode     = "auto"  # "auto" | "dark" | "light"
+        self._theme_mode     = "auto"
         self._theme          = DARK if system_is_dark() else LIGHT
 
         self.setWindowTitle("Stratoptic")
@@ -547,7 +654,7 @@ class StratopticWindow(QMainWindow):
         self._build_toolbar()
         self._build_ui()
         self.statusBar().showMessage(
-            "Stratoptic v0.4.0  ·  Gazi University Photonics  ·  Ready"
+            "Stratoptic v0.5.0  ·  Gazi University Photonics  ·  Ready"
         )
 
     # ------------------------------------------------------------------
@@ -560,12 +667,13 @@ class StratopticWindow(QMainWindow):
             self._theme = DARK
         elif mode == "light":
             self._theme = LIGHT
-        else:  # auto
+        else:
             self._theme = DARK if system_is_dark() else LIGHT
 
         self.setStyleSheet(build_style(self._theme))
         self.canvas.apply_theme(self._theme)
         self.stack_canvas.apply_theme(self._theme)
+        self.dispersion_canvas.apply_theme(self._theme)
 
     # ------------------------------------------------------------------
     # Menu
@@ -574,7 +682,6 @@ class StratopticWindow(QMainWindow):
     def _build_menu(self):
         mb = self.menuBar()
 
-        # File
         file_menu = mb.addMenu("File")
         act_png = QAction("Export Spectrum (PNG)...", self)
         act_png.setShortcut("Ctrl+E")
@@ -589,12 +696,10 @@ class StratopticWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction(act_quit)
 
-        # View — Theme submenu
         view_menu = mb.addMenu("View")
         theme_menu = view_menu.addMenu("Theme")
         theme_group = QActionGroup(self)
         theme_group.setExclusive(True)
-
         for mode, label in [("auto", "Auto"), ("dark", "Dark"), ("light", "Light")]:
             act = QAction(label, self, checkable=True)
             act.setChecked(mode == "auto")
@@ -602,13 +707,11 @@ class StratopticWindow(QMainWindow):
             theme_group.addAction(act)
             theme_menu.addAction(act)
 
-        # Tools
         tools_menu = mb.addMenu("Tools")
         act_db = QAction("Material Database...", self)
         act_db.triggered.connect(self._show_db)
         tools_menu.addAction(act_db)
 
-        # Help
         help_menu = mb.addMenu("Help")
         act_about = QAction("About Stratoptic", self)
         act_about.triggered.connect(self._show_about)
@@ -746,6 +849,9 @@ class StratopticWindow(QMainWindow):
         for m in mats:
             self.combo_mat.addItem(m)
 
+        # Malzeme değişince dispersiyon grafiği otomatik güncellenir
+        self.combo_mat.currentTextChanged.connect(self._update_dispersion)
+
         self.spin_d = QDoubleSpinBox()
         self.spin_d.setRange(0.1, 50000)
         self.spin_d.setValue(100.0)
@@ -850,6 +956,7 @@ class StratopticWindow(QMainWindow):
 
         v_splitter = QSplitter(Qt.Orientation.Vertical)
 
+        # Spectrum canvas
         self.canvas = SpectrumCanvas(self._theme)
         nav = NavigationToolbar(self.canvas, w)
         nav.setStyleSheet(f"background: {self._theme['panel_bg']}; "
@@ -862,13 +969,16 @@ class StratopticWindow(QMainWindow):
         spec_layout.addWidget(nav)
         v_splitter.addWidget(spec_w)
 
-        tabs = QTabWidget()
+        # Bottom tabs
+        self.tabs = QTabWidget()
         self.stack_canvas = StackCanvas(self._theme)
-        tabs.addTab(self.stack_canvas, "Layer Stack")
+        self.tabs.addTab(self.stack_canvas, "Layer Stack")
         self.results_table = ResultsTable()
-        tabs.addTab(self.results_table, "Spectral Data")
+        self.tabs.addTab(self.results_table, "Spectral Data")
+        self.dispersion_canvas = DispersionCanvas(self._theme)
+        self.tabs.addTab(self.dispersion_canvas, "Dispersion")
 
-        v_splitter.addWidget(tabs)
+        v_splitter.addWidget(self.tabs)
         v_splitter.setSizes([480, 220])
         v_splitter.setHandleWidth(1)
         layout.addWidget(v_splitter)
@@ -961,6 +1071,16 @@ class StratopticWindow(QMainWindow):
         except Exception:
             pass
 
+    def _update_dispersion(self, mat_name: str):
+        """Auto-update dispersion canvas when material combo changes."""
+        try:
+            mat = self.db.get(mat_name)
+            self.dispersion_canvas.plot(mat, self.db)
+            # Switch to dispersion tab so user sees it immediately
+            self.tabs.setCurrentWidget(self.dispersion_canvas)
+        except Exception:
+            pass
+
     # ------------------------------------------------------------------
     # Calculation
     # ------------------------------------------------------------------
@@ -1007,6 +1127,8 @@ class StratopticWindow(QMainWindow):
             step = max(1, len(wl) // 50)
             self.results_table.populate(result, step=step)
             self.stack_canvas.plot(structure, self.db)
+            # After calculate, switch back to spectrum view
+            self.tabs.setCurrentIndex(0)
             self.statusBar().showMessage("Calculation complete.")
 
         except Exception as e:
@@ -1065,7 +1187,7 @@ class StratopticWindow(QMainWindow):
     def _show_about(self):
         QMessageBox.about(
             self, "About Stratoptic",
-            "Stratoptic v0.4.0\n\n"
+            "Stratoptic v0.5.0\n\n"
             "Thin Film Design & Simulation Platform\n"
             "Byrnes (2021) TMM + RefractiveIndex.info DB\n\n"
             "Author: Necmeddin\n"
