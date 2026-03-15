@@ -1,5 +1,5 @@
 """
-Stratoptic - Main Window (v0.3)
+Stratoptic - Main Window (v0.4)
 ========================================================
 Author      : Necmeddin
 Institution : Gazi University, Department of Photonics
@@ -12,10 +12,11 @@ from PyQt6.QtWidgets import (
     QSplitter, QLabel, QPushButton, QComboBox, QDoubleSpinBox,
     QSpinBox, QGroupBox, QFrame, QSizePolicy, QCheckBox,
     QTableWidget, QTableWidgetItem, QHeaderView, QStatusBar,
-    QMenuBar, QMenu, QToolBar, QTabWidget, QFileDialog, QMessageBox
+    QMenuBar, QMenu, QToolBar, QTabWidget, QFileDialog, QMessageBox,
 )
 from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QFont, QAction, QIcon, QColor
+from PyQt6.QtGui import QFont, QAction, QColor, QPalette
+from PyQt6.QtGui import QActionGroup
 
 sys.path.insert(0, 'motor')
 from rii_db import RIIDatabase
@@ -32,43 +33,87 @@ import matplotlib.patches as mpatches
 
 
 # =============================================================================
-# STYLE
+# THEMES
 # =============================================================================
 
-STYLE = """
-* {
+DARK = {
+    "win_bg":       "#1C1C1E",
+    "panel_bg":     "#2C2C2E",
+    "input_bg":     "#3A3A3C",
+    "border":       "#3A3A3C",
+    "border2":      "#48484A",
+    "text":         "#EBEBF5",
+    "muted":        "#8E8E93",
+    "accent":       "#0A84FF",
+    "accent_hover": "#409CFF",
+    "accent_press": "#0060D0",
+    "danger":       "#FF453A",
+    "success":      "#30D158",
+    "warn":         "#FF9F0A",
+    "scrollbar":    "#48484A",
+    # matplotlib
+    "fig_bg":       "#1C1C1E",
+    "ax_bg":        "#2C2C2E",
+    "grid":         "#3A3A3C",
+}
+
+LIGHT = {
+    "win_bg":       "#F2F2F7",
+    "panel_bg":     "#FFFFFF",
+    "input_bg":     "#F2F2F7",
+    "border":       "#D1D1D6",
+    "border2":      "#C7C7CC",
+    "text":         "#1C1C1E",
+    "muted":        "#6C6C70",
+    "accent":       "#007AFF",
+    "accent_hover": "#3395FF",
+    "accent_press": "#0060CC",
+    "danger":       "#FF3B30",
+    "success":      "#34C759",
+    "warn":         "#FF9500",
+    "scrollbar":    "#C7C7CC",
+    # matplotlib
+    "fig_bg":       "#F2F2F7",
+    "ax_bg":        "#FFFFFF",
+    "grid":         "#D1D1D6",
+}
+
+
+def build_style(t: dict) -> str:
+    return f"""
+* {{
     font-family: 'Segoe UI', 'SF Pro Display', Arial, sans-serif;
     font-size: 12px;
-}
-QMainWindow { background-color: #1C1C1E; }
-QWidget#central { background-color: #1C1C1E; }
-QWidget#left_panel {
-    background-color: #2C2C2E;
-    border-right: 1px solid #3A3A3C;
-}
-QWidget#right_panel { background-color: #1C1C1E; }
-QGroupBox {
-    background-color: #2C2C2E;
-    border: 1px solid #3A3A3C;
+}}
+QMainWindow {{ background-color: {t['win_bg']}; }}
+QWidget#central {{ background-color: {t['win_bg']}; }}
+QWidget#left_panel {{
+    background-color: {t['panel_bg']};
+    border-right: 1px solid {t['border']};
+}}
+QWidget#right_panel {{ background-color: {t['win_bg']}; }}
+QGroupBox {{
+    background-color: {t['panel_bg']};
+    border: 1px solid {t['border']};
     border-radius: 8px;
     margin-top: 14px;
     padding: 12px 10px 10px 10px;
-    color: #EBEBF5;
+    color: {t['text']};
     font-weight: 600;
     font-size: 11px;
-}
-QGroupBox::title {
+}}
+QGroupBox::title {{
     subcontrol-origin: margin;
     left: 12px; top: -1px;
     padding: 0 6px;
-    color: #0A84FF;
-    background-color: #2C2C2E;
+    color: {t['accent']};
+    background-color: {t['panel_bg']};
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 1px;
-}
-QPushButton {
-    background-color: #0A84FF;
+}}
+QPushButton {{
+    background-color: {t['accent']};
     color: white;
     border: none;
     border-radius: 6px;
@@ -76,146 +121,153 @@ QPushButton {
     font-weight: 600;
     font-size: 12px;
     min-height: 30px;
-}
-QPushButton:hover { background-color: #409CFF; }
-QPushButton:pressed { background-color: #0060D0; }
-QPushButton#btn_add {
-    background-color: #3A3A3C;
-    color: #EBEBF5;
-    border: 1px solid #4A4A4C;
-}
-QPushButton#btn_add:hover { background-color: #48484A; }
-QPushButton#btn_remove {
+}}
+QPushButton:hover {{ background-color: {t['accent_hover']}; }}
+QPushButton:pressed {{ background-color: {t['accent_press']}; }}
+QPushButton#btn_add {{
+    background-color: {t['input_bg']};
+    color: {t['text']};
+    border: 1px solid {t['border2']};
+}}
+QPushButton#btn_add:hover {{ background-color: {t['border']}; }}
+QPushButton#btn_remove {{
     background-color: transparent;
-    color: #FF453A;
-    border: 1px solid #FF453A;
+    color: {t['danger']};
+    border: 1px solid {t['danger']};
     padding: 3px 8px;
     min-height: 22px;
     font-size: 11px;
-}
-QPushButton#btn_remove:hover { background-color: #3A1A1A; }
-QComboBox, QDoubleSpinBox, QSpinBox {
-    background-color: #3A3A3C;
-    color: #EBEBF5;
-    border: 1px solid #48484A;
+}}
+QComboBox, QDoubleSpinBox, QSpinBox {{
+    background-color: {t['input_bg']};
+    color: {t['text']};
+    border: 1px solid {t['border2']};
     border-radius: 5px;
     padding: 4px 8px;
     min-height: 26px;
-}
-QComboBox:focus, QDoubleSpinBox:focus, QSpinBox:focus {
-    border: 1px solid #0A84FF;
-}
-QComboBox::drop-down { border: none; width: 20px; }
-QComboBox QAbstractItemView {
-    background-color: #3A3A3C;
-    color: #EBEBF5;
-    selection-background-color: #0A84FF;
-    border: 1px solid #48484A;
-}
+}}
+QComboBox:focus, QDoubleSpinBox:focus, QSpinBox:focus {{
+    border: 1px solid {t['accent']};
+}}
+QComboBox::drop-down {{ border: none; width: 20px; }}
+QComboBox QAbstractItemView {{
+    background-color: {t['input_bg']};
+    color: {t['text']};
+    selection-background-color: {t['accent']};
+    border: 1px solid {t['border2']};
+}}
 QSpinBox::up-button, QSpinBox::down-button,
-QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
-    background-color: #48484A; border: none; width: 16px;
-}
-QTableWidget {
-    background-color: #2C2C2E;
-    color: #EBEBF5;
-    gridline-color: #3A3A3C;
-    border: 1px solid #3A3A3C;
+QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
+    background-color: {t['border2']}; border: none; width: 16px;
+}}
+QTableWidget {{
+    background-color: {t['panel_bg']};
+    color: {t['text']};
+    gridline-color: {t['border']};
+    border: 1px solid {t['border']};
     border-radius: 6px;
-    alternate-background-color: #323234;
-}
-QTableWidget::item:selected {
-    background-color: #0A84FF30;
-    color: #EBEBF5;
-}
-QHeaderView::section {
-    background-color: #3A3A3C;
-    color: #8E8E93;
+    alternate-background-color: {t['input_bg']};
+}}
+QTableWidget::item:selected {{
+    background-color: {t['accent']}30;
+    color: {t['text']};
+}}
+QHeaderView::section {{
+    background-color: {t['input_bg']};
+    color: {t['muted']};
     border: none;
-    border-bottom: 1px solid #48484A;
+    border-bottom: 1px solid {t['border2']};
     padding: 6px 8px;
     font-size: 10px;
     font-weight: 600;
     text-transform: uppercase;
-}
-QTabWidget::pane {
-    border: 1px solid #3A3A3C;
+}}
+QTabWidget::pane {{
+    border: 1px solid {t['border']};
     border-radius: 0 6px 6px 6px;
-    background-color: #2C2C2E;
-}
-QTabBar::tab {
-    background-color: #3A3A3C;
-    color: #8E8E93;
+    background-color: {t['panel_bg']};
+}}
+QTabBar::tab {{
+    background-color: {t['input_bg']};
+    color: {t['muted']};
     border: none;
     padding: 7px 16px;
     font-size: 11px;
     font-weight: 600;
-}
-QTabBar::tab:selected {
-    background-color: #2C2C2E;
-    color: #0A84FF;
-    border-bottom: 2px solid #0A84FF;
-}
-QTabBar::tab:hover { color: #EBEBF5; }
-QCheckBox { color: #EBEBF5; spacing: 6px; }
-QCheckBox::indicator {
+}}
+QTabBar::tab:selected {{
+    background-color: {t['panel_bg']};
+    color: {t['accent']};
+    border-bottom: 2px solid {t['accent']};
+}}
+QTabBar::tab:hover {{ color: {t['text']}; }}
+QCheckBox {{ color: {t['text']}; spacing: 6px; }}
+QCheckBox::indicator {{
     width: 14px; height: 14px;
     border-radius: 3px;
-    border: 1px solid #48484A;
-    background-color: #3A3A3C;
-}
-QCheckBox::indicator:checked {
-    background-color: #0A84FF;
-    border-color: #0A84FF;
-}
-QLabel { color: #EBEBF5; }
-QLabel#label_app_name {
-    color: #EBEBF5; font-size: 18px; font-weight: 700;
-}
-QLabel#label_app_sub { color: #8E8E93; font-size: 11px; }
-QLabel#label_section {
-    color: #8E8E93; font-size: 10px;
+    border: 1px solid {t['border2']};
+    background-color: {t['input_bg']};
+}}
+QCheckBox::indicator:checked {{
+    background-color: {t['accent']};
+    border-color: {t['accent']};
+}}
+QLabel {{ color: {t['text']}; }}
+QLabel#label_app_name {{
+    color: {t['text']}; font-size: 18px; font-weight: 700;
+}}
+QLabel#label_app_sub {{ color: {t['muted']}; font-size: 11px; }}
+QLabel#label_section {{
+    color: {t['muted']}; font-size: 10px;
     font-weight: 600; letter-spacing: 1px;
-}
-QSplitter::handle { background-color: #3A3A3C; }
-QSplitter::handle:horizontal { width: 1px; }
-QSplitter::handle:vertical { height: 1px; }
-QMenuBar {
-    background-color: #2C2C2E;
-    color: #EBEBF5;
-    border-bottom: 1px solid #3A3A3C;
+}}
+QSplitter::handle {{ background-color: {t['border']}; }}
+QSplitter::handle:horizontal {{ width: 1px; }}
+QSplitter::handle:vertical {{ height: 1px; }}
+QMenuBar {{
+    background-color: {t['panel_bg']};
+    color: {t['text']};
+    border-bottom: 1px solid {t['border']};
     padding: 2px;
-}
-QMenuBar::item:selected { background-color: #3A3A3C; border-radius: 4px; }
-QMenu {
-    background-color: #2C2C2E;
-    color: #EBEBF5;
-    border: 1px solid #3A3A3C;
+}}
+QMenuBar::item:selected {{ background-color: {t['input_bg']}; border-radius: 4px; }}
+QMenu {{
+    background-color: {t['panel_bg']};
+    color: {t['text']};
+    border: 1px solid {t['border']};
     border-radius: 6px;
     padding: 4px;
-}
-QMenu::item { padding: 6px 20px; border-radius: 4px; }
-QMenu::item:selected { background-color: #0A84FF; }
-QMenu::separator { height: 1px; background-color: #3A3A3C; margin: 4px 0; }
-QToolBar {
-    background-color: #2C2C2E;
-    border-bottom: 1px solid #3A3A3C;
+}}
+QMenu::item {{ padding: 6px 20px; border-radius: 4px; }}
+QMenu::item:selected {{ background-color: {t['accent']}; color: white; }}
+QMenu::separator {{ height: 1px; background-color: {t['border']}; margin: 4px 0; }}
+QMenu::indicator:checked {{ color: {t['accent']}; }}
+QToolBar {{
+    background-color: {t['panel_bg']};
+    border-bottom: 1px solid {t['border']};
     padding: 4px 8px; spacing: 4px;
-}
-QStatusBar {
-    background-color: #2C2C2E;
-    color: #8E8E93;
-    border-top: 1px solid #3A3A3C;
+}}
+QStatusBar {{
+    background-color: {t['panel_bg']};
+    color: {t['muted']};
+    border-top: 1px solid {t['border']};
     font-size: 11px; padding: 2px 8px;
-}
-QScrollBar:vertical {
-    background: #2C2C2E; width: 8px; border-radius: 4px;
-}
-QScrollBar::handle:vertical {
-    background: #48484A; border-radius: 4px; min-height: 20px;
-}
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+}}
+QScrollBar:vertical {{
+    background: {t['panel_bg']}; width: 8px; border-radius: 4px;
+}}
+QScrollBar::handle:vertical {{
+    background: {t['scrollbar']}; border-radius: 4px; min-height: 20px;
+}}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
 """
+
+
+def system_is_dark() -> bool:
+    """Detect system dark mode via Qt palette."""
+    palette = QApplication.instance().palette()
+    bg = palette.color(QPalette.ColorRole.Window)
+    return bg.lightness() < 128
 
 
 # =============================================================================
@@ -224,55 +276,70 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
 
 class SpectrumCanvas(FigureCanvas):
 
-    BG      = "#1C1C1E"
-    AX_BG   = "#2C2C2E"
-    GRID    = "#3A3A3C"
-    TEXT    = "#EBEBF5"
-    MUTED   = "#8E8E93"
     COLOR_R = "#FF453A"
     COLOR_T = "#0A84FF"
     COLOR_A = "#30D158"
 
-    def __init__(self, parent=None):
-        self.fig = Figure(facecolor=self.BG)
+    def __init__(self, theme: dict, parent=None):
+        self.t = theme
+        self.fig = Figure(facecolor=self.t["fig_bg"])
         super().__init__(self.fig)
         self.setParent(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._result = None
+        self._structure = None
+        self._show_R = True
+        self._show_T = True
+        self._show_A = True
         self._init_axes()
+
+    def apply_theme(self, theme: dict):
+        self.t = theme
+        self.fig.set_facecolor(self.t["fig_bg"])
+        if self._result:
+            self.plot(self._result, self._show_R, self._show_T,
+                      self._show_A, self._structure)
+        else:
+            self._init_axes()
 
     def _init_axes(self):
         self.fig.clear()
         gs = gridspec.GridSpec(1, 1, figure=self.fig,
                                left=0.08, right=0.97, top=0.93, bottom=0.12)
-        self.ax = self.fig.add_subplot(gs[0], facecolor=self.AX_BG)
+        self.ax = self.fig.add_subplot(gs[0], facecolor=self.t["ax_bg"])
         self._style_ax(self.ax)
         self.ax.text(0.5, 0.5, "Add layers and click Calculate",
                      transform=self.ax.transAxes,
                      ha="center", va="center",
-                     color=self.MUTED, fontsize=13)
+                     color=self.t["muted"], fontsize=13)
         self.draw()
 
     def _style_ax(self, ax):
-        ax.tick_params(colors=self.MUTED, labelsize=9, length=3)
-        ax.set_xlabel("Wavelength (nm)", color=self.MUTED, fontsize=10, labelpad=6)
-        ax.set_ylabel("Intensity (%)", color=self.MUTED, fontsize=10, labelpad=6)
+        ax.tick_params(colors=self.t["muted"], labelsize=9, length=3)
+        ax.set_xlabel("Wavelength (nm)", color=self.t["muted"], fontsize=10, labelpad=6)
+        ax.set_ylabel("Intensity (%)", color=self.t["muted"], fontsize=10, labelpad=6)
         ax.set_xlim(380, 800)
         ax.set_ylim(-2, 102)
-        ax.grid(True, color=self.GRID, alpha=0.8, linewidth=0.6)
-        ax.grid(True, which="minor", color=self.GRID, alpha=0.3, linewidth=0.4)
+        ax.grid(True, color=self.t["grid"], alpha=0.8, linewidth=0.6)
+        ax.grid(True, which="minor", color=self.t["grid"], alpha=0.3, linewidth=0.4)
         ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
         ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
         for spine in ax.spines.values():
-            spine.set_edgecolor(self.GRID)
+            spine.set_edgecolor(self.t["grid"])
             spine.set_linewidth(0.8)
 
     def plot(self, result, show_R=True, show_T=True, show_A=True, structure=None):
-        self._result = result
+        self._result    = result
+        self._structure = structure
+        self._show_R    = show_R
+        self._show_T    = show_T
+        self._show_A    = show_A
+
         self.fig.clear()
+        self.fig.set_facecolor(self.t["fig_bg"])
         gs = gridspec.GridSpec(1, 1, figure=self.fig,
                                left=0.08, right=0.97, top=0.90, bottom=0.12)
-        ax = self.fig.add_subplot(gs[0], facecolor=self.AX_BG)
+        ax = self.fig.add_subplot(gs[0], facecolor=self.t["ax_bg"])
         self._style_ax(ax)
         self.ax = ax
 
@@ -294,8 +361,9 @@ class SpectrumCanvas(FigureCanvas):
                             color=self.COLOR_A, zorder=2)
 
         ax.legend(loc="upper right", fontsize=9,
-                  facecolor="#3A3A3C", labelcolor=self.TEXT,
-                  edgecolor=self.GRID, framealpha=0.9,
+                  facecolor=self.t["panel_bg"],
+                  labelcolor=self.t["text"],
+                  edgecolor=self.t["grid"], framealpha=0.9,
                   handlelength=1.5, handletextpad=0.5)
         ax.set_xlim(wl[0], wl[-1])
         ax.set_ylim(-2, 102)
@@ -311,12 +379,13 @@ class SpectrumCanvas(FigureCanvas):
         else:
             title = f"TMM Spectrum   ·   pol: {pol_str}   ·   θ: {result.angle}°"
 
-        self.fig.suptitle(title, color=self.MUTED, fontsize=9,
+        self.fig.suptitle(title, color=self.t["muted"], fontsize=9,
                           x=0.5, y=0.97, ha="center")
         self.draw()
 
     def save(self, path: str):
-        self.fig.savefig(path, dpi=300, bbox_inches="tight", facecolor=self.BG)
+        self.fig.savefig(path, dpi=300, bbox_inches="tight",
+                         facecolor=self.t["fig_bg"])
 
 
 # =============================================================================
@@ -325,36 +394,54 @@ class SpectrumCanvas(FigureCanvas):
 
 class StackCanvas(FigureCanvas):
 
-    BG    = "#1C1C1E"
-    TEXT  = "#EBEBF5"
-    MUTED = "#8E8E93"
-
-    LAYER_COLORS = {
-        "ambient":    "#1A2A3A",
-        "dielectric": "#0A4A7A",
-        "metal":      "#4A3A0A",
-        "other":      "#3A3A4A",
-        "substrate":  "#2A2A3A",
-    }
-
-    def __init__(self, parent=None):
-        self.fig = Figure(facecolor=self.BG)
+    def __init__(self, theme: dict, parent=None):
+        self.t = theme
+        self.fig = Figure(facecolor=self.t["fig_bg"])
         super().__init__(self.fig)
         self.setParent(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._structure = None
+        self._db = None
         self._draw_empty()
+
+    def apply_theme(self, theme: dict):
+        self.t = theme
+        self.fig.set_facecolor(self.t["fig_bg"])
+        if self._structure:
+            self.plot(self._structure, self._db)
+        else:
+            self._draw_empty()
 
     def _draw_empty(self):
         self.fig.clear()
-        ax = self.fig.add_subplot(111, facecolor=self.BG)
+        self.fig.set_facecolor(self.t["fig_bg"])
+        ax = self.fig.add_subplot(111, facecolor=self.t["fig_bg"])
         ax.axis("off")
         ax.text(0.5, 0.5, "No layers defined",
                 transform=ax.transAxes, ha="center", va="center",
-                color=self.MUTED, fontsize=11)
+                color=self.t["muted"], fontsize=11)
         self.draw()
 
+    def _layer_color(self, role, mat):
+        if role == "incident":
+            return (self.t["input_bg"], 0.6)
+        if role == "substrate":
+            return (self.t["input_bg"], 0.8)
+        try:
+            k = mat.N_at(550).imag
+            if k > 0.1:  # metal
+                return ("#4A3A0A" if self.t == DARK else "#FFF3CD", 0.9)
+            else:         # dielectric
+                return ("#0A4A7A" if self.t == DARK else "#D0E8FF", 0.9)
+        except Exception:
+            return (self.t["input_bg"], 0.9)
+
     def plot(self, structure, db):
+        self._structure = structure
+        self._db = db
         self.fig.clear()
+        self.fig.set_facecolor(self.t["fig_bg"])
+
         all_layers = (
             [("incident", structure.incident, None)] +
             [(f"L{i+1}", l.material, l.thickness)
@@ -362,37 +449,30 @@ class StackCanvas(FigureCanvas):
             [("substrate", structure.substrate, None)]
         )
         n = len(all_layers)
-        ax = self.fig.add_subplot(111, facecolor=self.BG)
+        ax = self.fig.add_subplot(111, facecolor=self.t["fig_bg"])
         ax.set_xlim(0, 1)
         ax.set_ylim(0, n + 0.5)
         ax.axis("off")
 
         for i, (role, mat, thick) in enumerate(reversed(all_layers)):
             y = i
-            if role == "incident":
-                color = self.LAYER_COLORS["ambient"]
-            elif role == "substrate":
-                color = self.LAYER_COLORS["substrate"]
-            else:
-                try:
-                    k = mat.N_at(550).imag
-                    color = (self.LAYER_COLORS["metal"] if k > 0.1
-                             else self.LAYER_COLORS["dielectric"])
-                except Exception:
-                    color = self.LAYER_COLORS["other"]
+            color, alpha = self._layer_color(role, mat)
+            edge = self.t["accent"] if role not in ("incident","substrate") else self.t["border"]
+            lw   = 1.0 if role not in ("incident","substrate") else 0.5
 
-            alpha = 0.9 if role not in ("incident", "substrate") else 0.5
-            edge  = "#0A84FF" if role not in ("incident", "substrate") else "#3A3A3C"
-            rect  = mpatches.FancyBboxPatch(
+            rect = mpatches.FancyBboxPatch(
                 (0.02, y + 0.05), 0.96, 0.87,
                 boxstyle="round,pad=0.01",
                 facecolor=color, edgecolor=edge,
-                linewidth=1.0 if role not in ("incident","substrate") else 0.5,
-                alpha=alpha, zorder=2
+                linewidth=lw, alpha=alpha, zorder=2
             )
             ax.add_patch(rect)
 
-            n_val = mat.N_at(550).real
+            try:
+                n_val = mat.N_at(550).real
+            except Exception:
+                n_val = 0.0
+
             if thick is not None:
                 label = f"{mat.name}   ·   n={n_val:.3f}   ·   {thick:.0f} nm"
             else:
@@ -401,15 +481,15 @@ class StackCanvas(FigureCanvas):
 
             ax.text(0.5, y + 0.47, label,
                     ha="center", va="center",
-                    color=self.TEXT, fontsize=9,
+                    color=self.t["text"], fontsize=9,
                     fontweight="600" if role not in ("incident","substrate") else "400",
                     zorder=3)
 
         ax.annotate("", xy=(0.5, n - 0.4), xytext=(0.5, n + 0.2),
-                    arrowprops=dict(arrowstyle="-|>", color="#0A84FF", lw=1.5),
-                    zorder=4)
+                    arrowprops=dict(arrowstyle="-|>",
+                                   color=self.t["accent"], lw=1.5), zorder=4)
         ax.text(0.5, n + 0.3, "Incident light",
-                ha="center", va="bottom", color="#0A84FF",
+                ha="center", va="bottom", color=self.t["accent"],
                 fontsize=9, fontweight="600")
 
         self.fig.tight_layout(pad=0.5)
@@ -455,18 +535,37 @@ class StratopticWindow(QMainWindow):
         self.db = RIIDatabase("data/rii_db")
         self._last_result    = None
         self._last_structure = None
+        self._theme_mode     = "auto"  # "auto" | "dark" | "light"
+        self._theme          = DARK if system_is_dark() else LIGHT
 
         self.setWindowTitle("Stratoptic")
         self.setMinimumSize(1300, 750)
         self.resize(1500, 860)
-        self.setStyleSheet(STYLE)
+        self.setStyleSheet(build_style(self._theme))
 
         self._build_menu()
         self._build_toolbar()
         self._build_ui()
         self.statusBar().showMessage(
-            "Stratoptic v0.3.0  ·  Gazi University Photonics  ·  Ready"
+            "Stratoptic v0.4.0  ·  Gazi University Photonics  ·  Ready"
         )
+
+    # ------------------------------------------------------------------
+    # Theme
+    # ------------------------------------------------------------------
+
+    def _apply_theme(self, mode: str):
+        self._theme_mode = mode
+        if mode == "dark":
+            self._theme = DARK
+        elif mode == "light":
+            self._theme = LIGHT
+        else:  # auto
+            self._theme = DARK if system_is_dark() else LIGHT
+
+        self.setStyleSheet(build_style(self._theme))
+        self.canvas.apply_theme(self._theme)
+        self.stack_canvas.apply_theme(self._theme)
 
     # ------------------------------------------------------------------
     # Menu
@@ -475,6 +574,7 @@ class StratopticWindow(QMainWindow):
     def _build_menu(self):
         mb = self.menuBar()
 
+        # File
         file_menu = mb.addMenu("File")
         act_png = QAction("Export Spectrum (PNG)...", self)
         act_png.setShortcut("Ctrl+E")
@@ -489,11 +589,26 @@ class StratopticWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction(act_quit)
 
+        # View — Theme submenu
+        view_menu = mb.addMenu("View")
+        theme_menu = view_menu.addMenu("Theme")
+        theme_group = QActionGroup(self)
+        theme_group.setExclusive(True)
+
+        for mode, label in [("auto", "Auto"), ("dark", "Dark"), ("light", "Light")]:
+            act = QAction(label, self, checkable=True)
+            act.setChecked(mode == "auto")
+            act.triggered.connect(lambda checked, m=mode: self._apply_theme(m))
+            theme_group.addAction(act)
+            theme_menu.addAction(act)
+
+        # Tools
         tools_menu = mb.addMenu("Tools")
         act_db = QAction("Material Database...", self)
         act_db.triggered.connect(self._show_db)
         tools_menu.addAction(act_db)
 
+        # Help
         help_menu = mb.addMenu("Help")
         act_about = QAction("About Stratoptic", self)
         act_about.triggered.connect(self._show_about)
@@ -560,7 +675,7 @@ class StratopticWindow(QMainWindow):
 
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet("color: #3A3A3C;")
+        sep.setStyleSheet(f"color: {self._theme['border']};")
         layout.addWidget(sep)
 
         layout.addWidget(self._build_structure_group())
@@ -578,7 +693,7 @@ class StratopticWindow(QMainWindow):
         layout = QVBoxLayout(g)
         layout.setSpacing(6)
 
-        # ── Incident ──────────────────────────────────────────────────
+        # Incident
         row = QHBoxLayout()
         lbl = QLabel("Incident")
         lbl.setObjectName("label_section")
@@ -601,7 +716,7 @@ class StratopticWindow(QMainWindow):
         row.addWidget(self.combo_incident)
         layout.addLayout(row)
 
-        # ── Layer table ───────────────────────────────────────────────
+        # Layer table
         self.table = QTableWidget(0, 3)
         self.table.setHorizontalHeaderLabels(["Material", "d (nm)", ""])
         self.table.horizontalHeader().setSectionResizeMode(
@@ -617,7 +732,7 @@ class StratopticWindow(QMainWindow):
         self.table.verticalHeader().setVisible(False)
         layout.addWidget(self.table)
 
-        # ── Add layer controls ────────────────────────────────────────
+        # Add layer controls
         add_row = QHBoxLayout()
         self.combo_mat = QComboBox()
         priority = ["TiO2", "SiO2", "Ag", "Au", "Al", "Cr",
@@ -647,7 +762,7 @@ class StratopticWindow(QMainWindow):
         add_row.addWidget(btn_add, 1)
         layout.addLayout(add_row)
 
-        # ── Substrate ─────────────────────────────────────────────────
+        # Substrate
         row2 = QHBoxLayout()
         lbl2 = QLabel("Substrate")
         lbl2.setObjectName("label_section")
@@ -735,9 +850,10 @@ class StratopticWindow(QMainWindow):
 
         v_splitter = QSplitter(Qt.Orientation.Vertical)
 
-        self.canvas = SpectrumCanvas()
+        self.canvas = SpectrumCanvas(self._theme)
         nav = NavigationToolbar(self.canvas, w)
-        nav.setStyleSheet("background: #2C2C2E; color: #8E8E93;")
+        nav.setStyleSheet(f"background: {self._theme['panel_bg']}; "
+                          f"color: {self._theme['muted']};")
         spec_w = QWidget()
         spec_layout = QVBoxLayout(spec_w)
         spec_layout.setContentsMargins(0, 0, 0, 0)
@@ -747,7 +863,7 @@ class StratopticWindow(QMainWindow):
         v_splitter.addWidget(spec_w)
 
         tabs = QTabWidget()
-        self.stack_canvas = StackCanvas()
+        self.stack_canvas = StackCanvas(self._theme)
         tabs.addTab(self.stack_canvas, "Layer Stack")
         self.results_table = ResultsTable()
         tabs.addTab(self.results_table, "Spectral Data")
@@ -760,7 +876,7 @@ class StratopticWindow(QMainWindow):
 
     def _build_summary_row(self) -> QWidget:
         w = QWidget()
-        w.setStyleSheet("background: #2C2C2E; border-radius: 6px;")
+        w.setStyleSheet(f"background: {self._theme['panel_bg']}; border-radius: 6px;")
         layout = QHBoxLayout(w)
         layout.setContentsMargins(16, 8, 16, 8)
         layout.setSpacing(0)
@@ -788,12 +904,13 @@ class StratopticWindow(QMainWindow):
             if key != "A":
                 sep = QFrame()
                 sep.setFrameShape(QFrame.Shape.VLine)
-                sep.setStyleSheet("color: #3A3A3C;")
+                sep.setStyleSheet(f"color: {self._theme['border']};")
                 layout.addWidget(sep)
 
         layout.addStretch()
         self.lbl_info = QLabel("")
-        self.lbl_info.setStyleSheet("color: #8E8E93; font-size: 10px;")
+        self.lbl_info.setStyleSheet(
+            f"color: {self._theme['muted']}; font-size: 10px;")
         self.lbl_info.setAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.lbl_info)
@@ -948,7 +1065,7 @@ class StratopticWindow(QMainWindow):
     def _show_about(self):
         QMessageBox.about(
             self, "About Stratoptic",
-            "Stratoptic v0.3.0\n\n"
+            "Stratoptic v0.4.0\n\n"
             "Thin Film Design & Simulation Platform\n"
             "Byrnes (2021) TMM + RefractiveIndex.info DB\n\n"
             "Author: Necmeddin\n"
