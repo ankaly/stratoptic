@@ -1,5 +1,5 @@
 """
-Stratoptic - Main Window (v0.5)
+Stratoptic - Main Window (v1.0)
 ========================================================
 Author      : Necmeddin
 Institution : Gazi University, Department of Photonics
@@ -10,12 +10,12 @@ import numpy as np
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QLabel, QPushButton, QComboBox, QDoubleSpinBox,
-    QSpinBox, QGroupBox, QFrame, QSizePolicy, QCheckBox,
-    QTableWidget, QTableWidgetItem, QHeaderView, QStatusBar,
-    QMenuBar, QMenu, QToolBar, QTabWidget, QFileDialog, QMessageBox,
+    QSpinBox, QFrame, QSizePolicy, QCheckBox, QScrollArea,
+    QTableWidget, QTableWidgetItem, QHeaderView,
+    QTabWidget, QFileDialog, QMessageBox,
 )
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QFont, QAction, QColor, QPalette, QActionGroup
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QAction, QColor, QPalette, QActionGroup
 
 sys.path.insert(0, 'motor')
 from rii_db import RIIDatabase
@@ -36,599 +36,640 @@ import matplotlib.patches as mpatches
 # =============================================================================
 
 DARK = {
-    "win_bg":       "#1C1C1E",
-    "panel_bg":     "#2C2C2E",
-    "input_bg":     "#3A3A3C",
-    "border":       "#3A3A3C",
-    "border2":      "#48484A",
-    "text":         "#EBEBF5",
-    "muted":        "#8E8E93",
-    "accent":       "#0A84FF",
-    "accent_hover": "#409CFF",
-    "accent_press": "#0060D0",
-    "danger":       "#FF453A",
-    "success":      "#30D158",
-    "warn":         "#FF9F0A",
-    "scrollbar":    "#48484A",
-    "fig_bg":       "#1C1C1E",
-    "ax_bg":        "#2C2C2E",
-    "grid":         "#3A3A3C",
+    "win":      "#141416",
+    "panel":    "#1E1E21",
+    "raised":   "#252529",
+    "input":    "#2E2E33",
+    "hover":    "#38383E",
+    "line0":    "#27272C",
+    "line1":    "#333339",
+    "line2":    "#44444C",
+    "t0":       "#EDEDF2",
+    "t1":       "#A8A8B0",
+    "t2":       "#636368",
+    "accent":   "#0A84FF",
+    "accentH":  "#3B9EFF",
+    "accentP":  "#0060D0",
+    "danger":   "#FF453A",
+    "success":  "#32D74B",
+    "warn":     "#FFD60A",
+    "plot_bg":  "#141416",
+    "plot_ax":  "#1A1A1E",
+    "plot_grid":"#252529",
 }
 
 LIGHT = {
-    "win_bg":       "#F2F2F7",
-    "panel_bg":     "#FFFFFF",
-    "input_bg":     "#F2F2F7",
-    "border":       "#D1D1D6",
-    "border2":      "#C7C7CC",
-    "text":         "#1C1C1E",
-    "muted":        "#6C6C70",
-    "accent":       "#007AFF",
-    "accent_hover": "#3395FF",
-    "accent_press": "#0060CC",
-    "danger":       "#FF3B30",
-    "success":      "#34C759",
-    "warn":         "#FF9500",
-    "scrollbar":    "#C7C7CC",
-    "fig_bg":       "#F2F2F7",
-    "ax_bg":        "#FFFFFF",
-    "grid":         "#D1D1D6",
+    "win":      "#F0F0F5",
+    "panel":    "#FFFFFF",
+    "raised":   "#F5F5FA",
+    "input":    "#EBEBF0",
+    "hover":    "#E0E0E8",
+    "line0":    "#E0E0E8",
+    "line1":    "#CCCCDA",
+    "line2":    "#BBBBCA",
+    "t0":       "#111115",
+    "t1":       "#505058",
+    "t2":       "#9090A0",
+    "accent":   "#007AFF",
+    "accentH":  "#3395FF",
+    "accentP":  "#0055CC",
+    "danger":   "#FF3B30",
+    "success":  "#34C759",
+    "warn":     "#FF9500",
+    "plot_bg":  "#F0F0F5",
+    "plot_ax":  "#FFFFFF",
+    "plot_grid":"#E0E0E8",
 }
 
 
-def build_style(t: dict) -> str:
+def build_style(t):
+    # NavigationToolbar background fix — always matches plot area
     return f"""
-* {{
-    font-family: 'Segoe UI', 'SF Pro Display', Arial, sans-serif;
+QWidget {{
+    font-family: -apple-system, 'SF Pro Text', 'Segoe UI', sans-serif;
     font-size: 12px;
+    color: {t['t0']};
+    background: transparent;
 }}
-QMainWindow {{ background-color: {t['win_bg']}; }}
-QWidget#central {{ background-color: {t['win_bg']}; }}
-QWidget#left_panel {{
-    background-color: {t['panel_bg']};
-    border-right: 1px solid {t['border']};
+QMainWindow {{ background: {t['win']}; }}
+QWidget#root {{ background: {t['win']}; }}
+QWidget#sidebar {{
+    background: {t['panel']};
+    border-right: 1px solid {t['line0']};
 }}
-QWidget#right_panel {{ background-color: {t['win_bg']}; }}
-QGroupBox {{
-    background-color: {t['panel_bg']};
-    border: 1px solid {t['border']};
-    border-radius: 8px;
-    margin-top: 14px;
-    padding: 12px 10px 10px 10px;
-    color: {t['text']};
-    font-weight: 600;
-    font-size: 11px;
+QWidget#ribbon {{
+    background: {t['raised']};
+    border-bottom: 1px solid {t['line0']};
 }}
-QGroupBox::title {{
-    subcontrol-origin: margin;
-    left: 12px; top: -1px;
-    padding: 0 6px;
+QWidget#sumbar {{
+    background: {t['panel']};
+    border-bottom: 1px solid {t['line0']};
+}}
+QWidget#plotarea {{ background: {t['win']}; }}
+QScrollArea {{ border: none; background: transparent; }}
+QScrollArea > QWidget > QWidget {{ background: transparent; }}
+
+/* ── Section labels ── */
+QLabel#sec {{
     color: {t['accent']};
-    background-color: {t['panel_bg']};
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
+    font-size: 10px; font-weight: 700; letter-spacing: 1.2px;
 }}
+QLabel#muted {{
+    color: {t['t2']}; font-size: 11px;
+}}
+QLabel#appname {{
+    color: {t['t0']}; font-size: 15px; font-weight: 800; letter-spacing: -0.3px;
+}}
+QLabel#appsub {{
+    color: {t['accent']}; font-size: 10px; font-weight: 600; letter-spacing: 0.4px;
+}}
+QLabel#statval {{
+    font-size: 15px; font-weight: 700;
+}}
+QLabel#statkey {{
+    color: {t['t2']}; font-size: 10px;
+}}
+
+/* ── Primary button ── */
 QPushButton {{
-    background-color: {t['accent']};
-    color: white;
+    background: {t['accent']};
+    color: #FFFFFF;
     border: none;
-    border-radius: 6px;
-    padding: 7px 14px;
+    border-radius: 7px;
+    padding: 0 16px;
     font-weight: 600;
     font-size: 12px;
     min-height: 30px;
 }}
-QPushButton:hover {{ background-color: {t['accent_hover']}; }}
-QPushButton:pressed {{ background-color: {t['accent_press']}; }}
-QPushButton#btn_add {{
-    background-color: {t['input_bg']};
-    color: {t['text']};
-    border: 1px solid {t['border2']};
+QPushButton:hover {{
+    background: {t['accentH']};
 }}
-QPushButton#btn_add:hover {{ background-color: {t['border']}; }}
-QPushButton#btn_remove {{
-    background-color: transparent;
+QPushButton:pressed {{
+    background: {t['accentP']};
+}}
+QPushButton:disabled {{
+    background: {t['input']}; color: {t['t2']};
+}}
+
+/* ── Ghost button ── */
+QPushButton#ghost {{
+    background: {t['input']};
+    color: {t['t0']};
+    border: 1px solid {t['line2']};
+    border-radius: 7px;
+}}
+QPushButton#ghost:hover {{
+    background: {t['hover']};
+    border-color: {t['accent']};
+    color: {t['t0']};
+}}
+QPushButton#ghost:pressed {{
+    background: {t['line1']};
+}}
+
+/* ── Remove / danger button ── */
+QPushButton#rm {{
+    background: transparent;
     color: {t['danger']};
-    border: 1px solid {t['danger']};
-    padding: 3px 8px;
-    min-height: 22px;
-    font-size: 11px;
-}}
-QComboBox, QDoubleSpinBox, QSpinBox {{
-    background-color: {t['input_bg']};
-    color: {t['text']};
-    border: 1px solid {t['border2']};
+    border: 1px solid {t['danger']}55;
     border-radius: 5px;
-    padding: 4px 8px;
-    min-height: 26px;
+    padding: 0 6px;
+    min-height: 20px;
+    font-size: 11px;
+    font-weight: 600;
 }}
-QComboBox:focus, QDoubleSpinBox:focus, QSpinBox:focus {{
-    border: 1px solid {t['accent']};
+QPushButton#rm:hover {{
+    background: {t['danger']}20;
+    border-color: {t['danger']};
 }}
-QComboBox::drop-down {{ border: none; width: 20px; }}
-QComboBox QAbstractItemView {{
-    background-color: {t['input_bg']};
-    color: {t['text']};
+
+/* ── Warn / optimize button ── */
+QPushButton#warn {{
+    background: {t['warn']}15;
+    color: {t['warn']};
+    border: 1px solid {t['warn']}55;
+    border-radius: 7px;
+    font-weight: 700;
+    padding: 0 16px;
+    min-height: 30px;
+}}
+QPushButton#warn:hover {{
+    background: {t['warn']}30;
+    border-color: {t['warn']};
+}}
+QPushButton#warn:disabled {{
+    background: {t['input']}; color: {t['t2']}; border-color: {t['line2']};
+}}
+
+/* ── Calculate button ── */
+QPushButton#calc {{
+    background: {t['accent']};
+    color: white;
+    border-radius: 7px;
+    font-weight: 700;
+    font-size: 13px;
+    min-height: 34px;
+    padding: 0 22px;
+}}
+QPushButton#calc:hover {{ background: {t['accentH']}; }}
+QPushButton#calc:pressed {{ background: {t['accentP']}; }}
+
+/* ── Inputs ── */
+QComboBox, QSpinBox, QDoubleSpinBox {{
+    background: {t['input']};
+    color: {t['t0']};
+    border: 1px solid {t['line2']};
+    border-radius: 6px;
+    padding: 0 8px;
+    min-height: 28px;
     selection-background-color: {t['accent']};
-    border: 1px solid {t['border2']};
+}}
+QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover {{
+    border-color: {t['accent']}80;
+    background: {t['hover']};
+}}
+QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{
+    border-color: {t['accent']};
+}}
+QComboBox::drop-down {{ border: none; width: 22px; }}
+QComboBox QAbstractItemView {{
+    background: {t['raised']};
+    color: {t['t0']};
+    border: 1px solid {t['line1']};
+    border-radius: 6px;
+    selection-background-color: {t['accent']};
+    padding: 2px;
+    outline: none;
 }}
 QSpinBox::up-button, QSpinBox::down-button,
 QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
-    background-color: {t['border2']}; border: none; width: 16px;
+    background: {t['hover']}; border: none; width: 16px; border-radius: 3px;
 }}
+QSpinBox::up-button:hover, QSpinBox::down-button:hover,
+QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {{
+    background: {t['line2']};
+}}
+
+/* ── Table ── */
 QTableWidget {{
-    background-color: {t['panel_bg']};
-    color: {t['text']};
-    gridline-color: {t['border']};
-    border: 1px solid {t['border']};
-    border-radius: 6px;
-    alternate-background-color: {t['input_bg']};
+    background: {t['panel']};
+    color: {t['t0']};
+    border: 1px solid {t['line1']};
+    border-radius: 8px;
+    gridline-color: {t['line0']};
+    alternate-background-color: {t['raised']};
+    selection-background-color: {t['accent']}22;
+    selection-color: {t['t0']};
+    outline: none;
 }}
-QTableWidget::item:selected {{
-    background-color: {t['accent']}30;
-    color: {t['text']};
-}}
+QTableWidget::item {{ padding: 2px 6px; }}
+QTableWidget::item:hover {{ background: {t['hover']}40; }}
 QHeaderView::section {{
-    background-color: {t['input_bg']};
-    color: {t['muted']};
+    background: {t['input']};
+    color: {t['t2']};
     border: none;
-    border-bottom: 1px solid {t['border2']};
-    padding: 6px 8px;
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
+    border-bottom: 1px solid {t['line1']};
+    padding: 5px 6px;
+    font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
 }}
+
+/* ── Tabs ── */
 QTabWidget::pane {{
-    border: 1px solid {t['border']};
-    border-radius: 0 6px 6px 6px;
-    background-color: {t['panel_bg']};
+    border: none;
+    border-top: 1px solid {t['line1']};
+    background: {t['panel']};
+}}
+QTabBar {{
+    background: {t['raised']};
 }}
 QTabBar::tab {{
-    background-color: {t['input_bg']};
-    color: {t['muted']};
+    background: {t['raised']};
+    color: {t['t2']};
     border: none;
-    padding: 7px 16px;
-    font-size: 11px;
-    font-weight: 600;
+    padding: 8px 18px;
+    font-size: 11px; font-weight: 600;
+    min-width: 90px;
 }}
 QTabBar::tab:selected {{
-    background-color: {t['panel_bg']};
+    background: {t['panel']};
     color: {t['accent']};
     border-bottom: 2px solid {t['accent']};
 }}
-QTabBar::tab:hover {{ color: {t['text']}; }}
-QCheckBox {{ color: {t['text']}; spacing: 6px; }}
+QTabBar::tab:hover:!selected {{
+    color: {t['t1']};
+    background: {t['hover']};
+}}
+
+/* ── Checkbox ── */
+QCheckBox {{ color: {t['t0']}; spacing: 6px; }}
 QCheckBox::indicator {{
-    width: 14px; height: 14px;
-    border-radius: 3px;
-    border: 1px solid {t['border2']};
-    background-color: {t['input_bg']};
+    width: 15px; height: 15px;
+    border-radius: 4px;
+    border: 1.5px solid {t['line2']};
+    background: {t['input']};
 }}
+QCheckBox::indicator:hover {{ border-color: {t['accent']}; }}
 QCheckBox::indicator:checked {{
-    background-color: {t['accent']};
-    border-color: {t['accent']};
+    background: {t['accent']}; border-color: {t['accent']};
 }}
-QLabel {{ color: {t['text']}; }}
-QLabel#label_app_name {{
-    color: {t['text']}; font-size: 18px; font-weight: 700;
+
+/* ── Menu ── */
+QMenuBar {{
+    background: {t['raised']}; color: {t['t0']};
+    border-bottom: 1px solid {t['line0']}; padding: 2px 8px;
 }}
-QLabel#label_app_sub {{ color: {t['muted']}; font-size: 11px; }}
-QLabel#label_section {{
-    color: {t['muted']}; font-size: 10px;
-    font-weight: 600; letter-spacing: 1px;
+QMenuBar::item {{ padding: 4px 12px; border-radius: 5px; }}
+QMenuBar::item:selected {{ background: {t['hover']}; }}
+QMenu {{
+    background: {t['raised']}; color: {t['t0']};
+    border: 1px solid {t['line1']}; border-radius: 10px; padding: 5px;
 }}
-QSplitter::handle {{ background-color: {t['border']}; }}
+QMenu::item {{ padding: 7px 22px; border-radius: 5px; }}
+QMenu::item:selected {{ background: {t['accent']}; color: white; }}
+QMenu::separator {{ height: 1px; background: {t['line0']}; margin: 4px 2px; }}
+
+/* ── Status bar ── */
+QStatusBar {{
+    background: {t['raised']}; color: {t['t2']};
+    border-top: 1px solid {t['line0']};
+    font-size: 11px; padding: 2px 14px;
+}}
+
+/* ── NavigationToolbar ── */
+QToolBar {{
+    background: {t['win']};
+    border: none;
+    spacing: 2px;
+    padding: 2px 4px;
+}}
+QToolBar QToolButton {{
+    background: transparent;
+    color: {t['t1']};
+    border: none;
+    border-radius: 5px;
+    padding: 4px;
+    min-width: 24px; min-height: 24px;
+}}
+QToolBar QToolButton:hover {{
+    background: {t['hover']};
+    color: {t['t0']};
+}}
+QToolBar QToolButton:pressed {{
+    background: {t['line1']};
+}}
+QToolBar QToolButton:checked {{
+    background: {t['accent']}22;
+    color: {t['accent']};
+}}
+
+/* ── Splitter ── */
+QSplitter::handle {{ background: {t['line0']}; }}
 QSplitter::handle:horizontal {{ width: 1px; }}
 QSplitter::handle:vertical {{ height: 1px; }}
-QMenuBar {{
-    background-color: {t['panel_bg']};
-    color: {t['text']};
-    border-bottom: 1px solid {t['border']};
-    padding: 2px;
-}}
-QMenuBar::item:selected {{ background-color: {t['input_bg']}; border-radius: 4px; }}
-QMenu {{
-    background-color: {t['panel_bg']};
-    color: {t['text']};
-    border: 1px solid {t['border']};
-    border-radius: 6px;
-    padding: 4px;
-}}
-QMenu::item {{ padding: 6px 20px; border-radius: 4px; }}
-QMenu::item:selected {{ background-color: {t['accent']}; color: white; }}
-QMenu::separator {{ height: 1px; background-color: {t['border']}; margin: 4px 0; }}
-QMenu::indicator:checked {{ color: {t['accent']}; }}
-QToolBar {{
-    background-color: {t['panel_bg']};
-    border-bottom: 1px solid {t['border']};
-    padding: 4px 8px; spacing: 4px;
-}}
-QStatusBar {{
-    background-color: {t['panel_bg']};
-    color: {t['muted']};
-    border-top: 1px solid {t['border']};
-    font-size: 11px; padding: 2px 8px;
-}}
+
+/* ── Scrollbar ── */
 QScrollBar:vertical {{
-    background: {t['panel_bg']}; width: 8px; border-radius: 4px;
+    background: transparent; width: 6px; margin: 0;
 }}
 QScrollBar::handle:vertical {{
-    background: {t['scrollbar']}; border-radius: 4px; min-height: 20px;
+    background: {t['line2']}; border-radius: 3px; min-height: 24px;
 }}
+QScrollBar::handle:vertical:hover {{ background: {t['t2']}; }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
 """
 
 
-def system_is_dark() -> bool:
-    palette = QApplication.instance().palette()
-    bg = palette.color(QPalette.ColorRole.Window)
-    return bg.lightness() < 128
+def is_dark():
+    return QApplication.instance().palette().color(
+        QPalette.ColorRole.Window).lightness() < 128
+
+
+def sec(text):
+    l = QLabel(text.upper()); l.setObjectName("sec"); return l
+
+
+def muted(text):
+    l = QLabel(text); l.setObjectName("muted"); return l
+
+
+def hdiv(t):
+    f = QFrame(); f.setFrameShape(QFrame.Shape.HLine)
+    f.setStyleSheet(f"background:{t['line0']};max-height:1px;border:none;"); return f
+
+
+def vdiv(t):
+    f = QFrame(); f.setFrameShape(QFrame.Shape.VLine)
+    f.setStyleSheet(f"background:{t['line0']};max-width:1px;border:none;"); return f
 
 
 # =============================================================================
-# SPECTRUM CANVAS
+# OPTIMIZER
+# =============================================================================
+
+class OptimizeWorker(QThread):
+    finished = pyqtSignal(list, float)
+    progress = pyqtSignal(str)
+
+    def __init__(self, sf, oi, bounds, conditions, pol, angle):
+        super().__init__()
+        self._sf = sf; self._oi = oi; self._b = bounds
+        self._cond = conditions; self._pol = pol; self._ang = angle
+
+    def _cost(self, d):
+        st = self._sf(self._oi, d); total = 0.0
+        for wl0, wl1, metric, goal, weight in self._cond:
+            wl = np.linspace(wl0, wl1, 150)
+            r = TMMEngine(st).calculate(wl, angle=self._ang,
+                                         polarization=self._pol,
+                                         substrate_thickness_mm=1.0)
+            val = {"R": r.R, "T": r.T, "A": r.A}[metric].mean()
+            total += weight * (-val if goal == "max" else val)
+        return total
+
+    def run(self):
+        from scipy.optimize import differential_evolution
+        self.progress.emit("Optimizing…")
+        res = differential_evolution(
+            self._cost, bounds=self._b,
+            maxiter=300, tol=1e-4, seed=42, workers=1, popsize=12)
+        self.finished.emit(list(res.x), float(res.fun))
+
+
+# =============================================================================
+# CANVASES
 # =============================================================================
 
 class SpectrumCanvas(FigureCanvas):
+    CR = "#FF453A"; CT = "#0A84FF"; CA = "#32D74B"
 
-    COLOR_R = "#FF453A"
-    COLOR_T = "#0A84FF"
-    COLOR_A = "#30D158"
-
-    def __init__(self, theme: dict, parent=None):
-        self.t = theme
-        self.fig = Figure(facecolor=self.t["fig_bg"])
+    def __init__(self, t, parent=None):
+        self.t = t
+        self.fig = Figure(facecolor=t["plot_bg"])
         super().__init__(self.fig)
         self.setParent(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self._result    = None
-        self._structure = None
-        self._show_R = self._show_T = self._show_A = True
-        self._init_axes()
+        self._res = self._st = None
+        self._sR = self._sT = self._sA = True
+        self._empty()
 
-    def apply_theme(self, theme: dict):
-        self.t = theme
-        self.fig.set_facecolor(self.t["fig_bg"])
-        if self._result:
-            self.plot(self._result, self._show_R, self._show_T,
-                      self._show_A, self._structure)
+    def apply_theme(self, t):
+        self.t = t; self.fig.set_facecolor(t["plot_bg"])
+        if self._res:
+            self.plot(self._res, self._sR, self._sT, self._sA, self._st)
         else:
-            self._init_axes()
+            self._empty()
 
-    def _init_axes(self):
-        self.fig.clear()
-        gs = gridspec.GridSpec(1, 1, figure=self.fig,
-                               left=0.08, right=0.97, top=0.93, bottom=0.12)
-        self.ax = self.fig.add_subplot(gs[0], facecolor=self.t["ax_bg"])
-        self._style_ax(self.ax)
-        self.ax.text(0.5, 0.5, "Add layers and click Calculate",
-                     transform=self.ax.transAxes,
-                     ha="center", va="center",
-                     color=self.t["muted"], fontsize=13)
-        self.draw()
-
-    def _style_ax(self, ax):
-        ax.tick_params(colors=self.t["muted"], labelsize=9, length=3)
-        ax.set_xlabel("Wavelength (nm)", color=self.t["muted"], fontsize=10, labelpad=6)
-        ax.set_ylabel("Intensity (%)", color=self.t["muted"], fontsize=10, labelpad=6)
-        ax.set_xlim(380, 800)
-        ax.set_ylim(-2, 102)
-        ax.grid(True, color=self.t["grid"], alpha=0.8, linewidth=0.6)
-        ax.grid(True, which="minor", color=self.t["grid"], alpha=0.3, linewidth=0.4)
+    def _style(self, ax):
+        ax.tick_params(colors=self.t["t2"], labelsize=9, length=3, width=0.6)
+        ax.set_xlabel("Wavelength (nm)", color=self.t["t2"], fontsize=10, labelpad=5)
+        ax.set_ylabel("Intensity (%)", color=self.t["t2"], fontsize=10, labelpad=5)
+        ax.set_xlim(380, 800); ax.set_ylim(-2, 102)
+        ax.grid(True, color=self.t["plot_grid"], lw=0.5, alpha=1.0)
+        ax.grid(True, which="minor", color=self.t["plot_grid"], lw=0.3, alpha=0.5)
         ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
         ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
-        for spine in ax.spines.values():
-            spine.set_edgecolor(self.t["grid"])
-            spine.set_linewidth(0.8)
+        for sp in ax.spines.values():
+            sp.set_edgecolor(self.t["plot_grid"]); sp.set_linewidth(0.6)
 
-    def plot(self, result, show_R=True, show_T=True, show_A=True, structure=None):
-        self._result    = result
-        self._structure = structure
-        self._show_R    = show_R
-        self._show_T    = show_T
-        self._show_A    = show_A
-
+    def _empty(self):
         self.fig.clear()
-        self.fig.set_facecolor(self.t["fig_bg"])
         gs = gridspec.GridSpec(1, 1, figure=self.fig,
-                               left=0.08, right=0.97, top=0.90, bottom=0.12)
-        ax = self.fig.add_subplot(gs[0], facecolor=self.t["ax_bg"])
-        self._style_ax(ax)
-        self.ax = ax
-
-        wl = result.wavelengths
-        if show_R:
-            ax.plot(wl, result.R * 100, color=self.COLOR_R, lw=1.8,
-                    label="Reflectance (R)", zorder=3)
-            ax.fill_between(wl, result.R * 100, alpha=0.08, color=self.COLOR_R)
-        if show_T:
-            ax.plot(wl, result.T * 100, color=self.COLOR_T, lw=1.8,
-                    label="Transmittance (T)", zorder=3)
-            ax.fill_between(wl, result.T * 100, alpha=0.08, color=self.COLOR_T)
-        if show_A:
-            ax.plot(wl, result.A * 100, color=self.COLOR_A, lw=1.8,
-                    label="Absorbance (A)", zorder=3)
-            ax.fill_between(wl, result.A * 100, alpha=0.08, color=self.COLOR_A)
-
-        ax.legend(loc="upper right", fontsize=9,
-                  facecolor=self.t["panel_bg"], labelcolor=self.t["text"],
-                  edgecolor=self.t["grid"], framealpha=0.9,
-                  handlelength=1.5, handletextpad=0.5)
-        ax.set_xlim(wl[0], wl[-1])
-        ax.set_ylim(-2, 102)
-
-        pol_str = result.polarization.upper()
-        if structure:
-            stack = " / ".join(
-                [structure.incident.name] +
-                [f"{l.material.name}({l.thickness:.0f}nm)" for l in structure.layers] +
-                [structure.substrate.name]
-            )
-            title = f"{stack}   ·   pol: {pol_str}   ·   θ: {result.angle}°"
-        else:
-            title = f"TMM Spectrum   ·   pol: {pol_str}   ·   θ: {result.angle}°"
-
-        self.fig.suptitle(title, color=self.t["muted"], fontsize=9,
-                          x=0.5, y=0.97, ha="center")
+                               left=0.07, right=0.98, top=0.95, bottom=0.10)
+        ax = self.fig.add_subplot(gs[0], facecolor=self.t["plot_ax"])
+        self._style(ax)
+        ax.text(0.5, 0.5, "Add layers and click  Calculate",
+                transform=ax.transAxes, ha="center", va="center",
+                color=self.t["t2"], fontsize=13)
         self.draw()
 
-    def save(self, path: str):
+    def plot(self, result, sR=True, sT=True, sA=True, structure=None):
+        self._res = result; self._st = structure
+        self._sR = sR; self._sT = sT; self._sA = sA
+        self.fig.clear(); self.fig.set_facecolor(self.t["plot_bg"])
+        gs = gridspec.GridSpec(1, 1, figure=self.fig,
+                               left=0.07, right=0.98, top=0.92, bottom=0.10)
+        ax = self.fig.add_subplot(gs[0], facecolor=self.t["plot_ax"])
+        self._style(ax)
+        wl = result.wavelengths
+        if sR:
+            ax.plot(wl, result.R*100, color=self.CR, lw=2.0,
+                    label="Reflectance (R)", zorder=3)
+            ax.fill_between(wl, result.R*100, alpha=0.07, color=self.CR)
+        if sT:
+            ax.plot(wl, result.T*100, color=self.CT, lw=2.0,
+                    label="Transmittance (T)", zorder=3)
+            ax.fill_between(wl, result.T*100, alpha=0.07, color=self.CT)
+        if sA:
+            ax.plot(wl, result.A*100, color=self.CA, lw=2.0,
+                    label="Absorbance (A)", zorder=3)
+            ax.fill_between(wl, result.A*100, alpha=0.07, color=self.CA)
+        ax.legend(loc="upper right", fontsize=9,
+                  facecolor=self.t["plot_ax"], labelcolor=self.t["t1"],
+                  edgecolor=self.t["plot_grid"], framealpha=0.95,
+                  handlelength=1.5, handletextpad=0.5)
+        ax.set_xlim(wl[0], wl[-1]); ax.set_ylim(-2, 102)
+        pol = result.polarization.upper()
+        if structure:
+            title = " / ".join(
+                [structure.incident.name] +
+                [f"{l.material.name}({l.thickness:.0f})" for l in structure.layers] +
+                [structure.substrate.name])
+            title += f"   ·   {pol}   ·   θ={result.angle}°"
+        else:
+            title = f"TMM Spectrum   ·   {pol}   ·   θ={result.angle}°"
+        self.fig.suptitle(title, color=self.t["t2"], fontsize=8.5,
+                          x=0.5, y=0.99, ha="center")
+        self.draw()
+
+    def save(self, path):
         self.fig.savefig(path, dpi=300, bbox_inches="tight",
-                         facecolor=self.t["fig_bg"])
+                         facecolor=self.t["plot_bg"])
 
-
-# =============================================================================
-# DISPERSION CANVAS
-# =============================================================================
 
 class DispersionCanvas(FigureCanvas):
-    """n(λ) and k(λ) curves for a selected material."""
+    CN = "#0A84FF"; CK = "#FF453A"
 
-    COLOR_N = "#0A84FF"
-    COLOR_K = "#FF453A"
-
-    def __init__(self, theme: dict, parent=None):
-        self.t = theme
-        self.fig = Figure(facecolor=self.t["fig_bg"])
+    def __init__(self, t, parent=None):
+        self.t = t
+        self.fig = Figure(facecolor=t["plot_bg"])
         super().__init__(self.fig)
         self.setParent(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self._draw_empty()
+        self._empty()
 
-    def apply_theme(self, theme: dict):
-        self.t = theme
-        self.fig.set_facecolor(self.t["fig_bg"])
-        self.draw()
+    def apply_theme(self, t):
+        self.t = t; self.fig.set_facecolor(t["plot_bg"]); self.draw()
 
-    def _style_ax(self, ax):
-        ax.tick_params(colors=self.t["muted"], labelsize=9, length=3)
-        ax.grid(True, color=self.t["grid"], alpha=0.8, linewidth=0.6)
-        ax.grid(True, which="minor", color=self.t["grid"], alpha=0.3, linewidth=0.4)
+    def _sax(self, ax):
+        ax.tick_params(colors=self.t["t2"], labelsize=9, length=3, width=0.6)
+        ax.grid(True, color=self.t["plot_grid"], lw=0.5)
+        ax.grid(True, which="minor", color=self.t["plot_grid"], lw=0.3, alpha=0.5)
         ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
         ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
-        for spine in ax.spines.values():
-            spine.set_edgecolor(self.t["grid"])
-            spine.set_linewidth(0.8)
+        for sp in ax.spines.values():
+            sp.set_edgecolor(self.t["plot_grid"]); sp.set_linewidth(0.6)
 
-    def _draw_empty(self):
-        self.fig.clear()
-        self.fig.set_facecolor(self.t["fig_bg"])
-        ax = self.fig.add_subplot(111, facecolor=self.t["fig_bg"])
-        ax.axis("off")
+    def _empty(self):
+        self.fig.clear(); self.fig.set_facecolor(self.t["plot_bg"])
+        ax = self.fig.add_subplot(111, facecolor=self.t["plot_bg"]); ax.axis("off")
         ax.text(0.5, 0.5, "Select a material to view dispersion",
                 transform=ax.transAxes, ha="center", va="center",
-                color=self.t["muted"], fontsize=11)
+                color=self.t["t2"], fontsize=11)
         self.draw()
 
     def plot(self, mat, db):
-        """Plot n(λ) and k(λ) for material `mat`."""
-        self.fig.clear()
-        self.fig.set_facecolor(self.t["fig_bg"])
-
-        # Get wavelength range from material
+        self.fig.clear(); self.fig.set_facecolor(self.t["plot_bg"])
         try:
-            wl_min, wl_max = mat.wl_range_nm
-            wl_min = max(wl_min, 200)
-            wl_max = min(wl_max, 2500)
-            if wl_max - wl_min < 10:
-                wl_min, wl_max = 200, 1800
-        except Exception:
-            wl_min, wl_max = 200, 1800
-
-        wl = np.linspace(wl_min, wl_max, 500)
-        n_vals = np.array([mat.N_at(w).real for w in wl])
-        k_vals = np.array([mat.N_at(w).imag for w in wl])
-
-        has_k = k_vals.max() > 0.001
-
+            wl0, wl1 = mat.wl_range_nm
+            wl0 = max(wl0, 200); wl1 = min(wl1, 2500)
+            if wl1-wl0 < 10: wl0, wl1 = 200, 1800
+        except: wl0, wl1 = 200, 1800
+        wl = np.linspace(wl0, wl1, 500)
+        nv = np.array([mat.N_at(w).real for w in wl])
+        kv = np.array([mat.N_at(w).imag for w in wl])
+        has_k = kv.max() > 0.001
+        m = dict(left=0.09, right=0.97, top=0.90, bottom=0.11)
         if has_k:
-            gs = gridspec.GridSpec(2, 1, figure=self.fig,
-                                   left=0.10, right=0.92,
-                                   top=0.88, bottom=0.12,
-                                   hspace=0.08)
-            ax_n = self.fig.add_subplot(gs[0], facecolor=self.t["ax_bg"])
-            ax_k = self.fig.add_subplot(gs[1], facecolor=self.t["ax_bg"],
-                                        sharex=ax_n)
+            gs = gridspec.GridSpec(2, 1, figure=self.fig, hspace=0.06, **m)
+            an = self.fig.add_subplot(gs[0], facecolor=self.t["plot_ax"])
+            ak = self.fig.add_subplot(gs[1], facecolor=self.t["plot_ax"], sharex=an)
         else:
-            gs = gridspec.GridSpec(1, 1, figure=self.fig,
-                                   left=0.10, right=0.92,
-                                   top=0.88, bottom=0.12)
-            ax_n = self.fig.add_subplot(gs[0], facecolor=self.t["ax_bg"])
-            ax_k = None
-
-        # ── n plot ──────────────────────────────────────────────────
-        self._style_ax(ax_n)
-        ax_n.plot(wl, n_vals, color=self.COLOR_N, lw=2.0, label="n  (real)")
-        ax_n.set_ylabel("n", color=self.t["muted"], fontsize=10)
-        ax_n.yaxis.label.set_color(self.COLOR_N)
-        ax_n.legend(loc="upper right", fontsize=9,
-                    facecolor=self.t["panel_bg"], labelcolor=self.t["text"],
-                    edgecolor=self.t["grid"], framealpha=0.9)
-        ax_n.set_xlim(wl[0], wl[-1])
+            gs = gridspec.GridSpec(1, 1, figure=self.fig, **m)
+            an = self.fig.add_subplot(gs[0], facecolor=self.t["plot_ax"]); ak = None
+        self._sax(an)
+        an.plot(wl, nv, color=self.CN, lw=2.0, label="n  (refractive index)")
+        an.set_ylabel("n", color=self.CN, fontsize=10)
+        an.legend(loc="upper right", fontsize=9, facecolor=self.t["plot_ax"],
+                  labelcolor=self.t["t1"], edgecolor=self.t["plot_grid"], framealpha=0.95)
+        an.set_xlim(wl[0], wl[-1])
         if has_k:
-            ax_n.tick_params(labelbottom=False)
-
-        # ── k plot ──────────────────────────────────────────────────
-        if ax_k is not None:
-            self._style_ax(ax_k)
-            ax_k.plot(wl, k_vals, color=self.COLOR_K, lw=2.0, label="k  (extinction)")
-            ax_k.set_ylabel("k", color=self.t["muted"], fontsize=10)
-            ax_k.yaxis.label.set_color(self.COLOR_K)
-            ax_k.set_xlabel("Wavelength (nm)", color=self.t["muted"],
-                             fontsize=10, labelpad=6)
-            ax_k.legend(loc="upper right", fontsize=9,
-                        facecolor=self.t["panel_bg"], labelcolor=self.t["text"],
-                        edgecolor=self.t["grid"], framealpha=0.9)
-            ax_k.set_xlim(wl[0], wl[-1])
+            an.tick_params(labelbottom=False)
+            self._sax(ak)
+            ak.plot(wl, kv, color=self.CK, lw=2.0, label="k  (extinction)")
+            ak.set_ylabel("k", color=self.CK, fontsize=10)
+            ak.set_xlabel("Wavelength (nm)", color=self.t["t2"], fontsize=10, labelpad=5)
+            ak.legend(loc="upper right", fontsize=9, facecolor=self.t["plot_ax"],
+                      labelcolor=self.t["t1"], edgecolor=self.t["plot_grid"], framealpha=0.95)
+            ak.set_xlim(wl[0], wl[-1])
         else:
-            ax_n.set_xlabel("Wavelength (nm)", color=self.t["muted"],
-                             fontsize=10, labelpad=6)
-
-        # ── Info line ───────────────────────────────────────────────
+            an.set_xlabel("Wavelength (nm)", color=self.t["t2"], fontsize=10, labelpad=5)
         pages = db.list_pages(mat.name)
-        page_str = pages[0][0] if pages else "built-in"
-        title = (f"{mat.name}   ·   {page_str}   ·   "
-                 f"λ: {wl_min:.0f}–{wl_max:.0f} nm")
-        self.fig.suptitle(title, color=self.t["muted"], fontsize=9,
-                          x=0.5, y=0.97, ha="center")
+        pg = pages[0][0] if pages else "built-in"
+        self.fig.suptitle(f"{mat.name}   ·   {pg}   ·   {wl0:.0f}–{wl1:.0f} nm",
+                          color=self.t["t2"], fontsize=9, x=0.5, y=0.97, ha="center")
         self.draw()
 
 
-# =============================================================================
-# STACK DIAGRAM CANVAS
-# =============================================================================
-
 class StackCanvas(FigureCanvas):
-
-    def __init__(self, theme: dict, parent=None):
-        self.t = theme
-        self.fig = Figure(facecolor=self.t["fig_bg"])
+    def __init__(self, t, parent=None):
+        self.t = t
+        self.fig = Figure(facecolor=t["plot_bg"])
         super().__init__(self.fig)
         self.setParent(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self._structure = None
-        self._db = None
-        self._draw_empty()
+        self._st = self._db = None; self._empty()
 
-    def apply_theme(self, theme: dict):
-        self.t = theme
-        self.fig.set_facecolor(self.t["fig_bg"])
-        if self._structure:
-            self.plot(self._structure, self._db)
-        else:
-            self._draw_empty()
+    def apply_theme(self, t):
+        self.t = t; self.fig.set_facecolor(t["plot_bg"])
+        if self._st: self.plot(self._st, self._db)
+        else: self._empty()
 
-    def _draw_empty(self):
-        self.fig.clear()
-        self.fig.set_facecolor(self.t["fig_bg"])
-        ax = self.fig.add_subplot(111, facecolor=self.t["fig_bg"])
-        ax.axis("off")
-        ax.text(0.5, 0.5, "No layers defined",
-                transform=ax.transAxes, ha="center", va="center",
-                color=self.t["muted"], fontsize=11)
+    def _empty(self):
+        self.fig.clear(); self.fig.set_facecolor(self.t["plot_bg"])
+        ax = self.fig.add_subplot(111, facecolor=self.t["plot_bg"]); ax.axis("off")
+        ax.text(0.5, 0.5, "No layers defined", transform=ax.transAxes,
+                ha="center", va="center", color=self.t["t2"], fontsize=11)
         self.draw()
 
-    def _layer_color(self, role, mat):
-        if role == "incident":
-            return (self.t["input_bg"], 0.6)
-        if role == "substrate":
-            return (self.t["input_bg"], 0.8)
-        try:
-            k = mat.N_at(550).imag
-            if k > 0.1:
-                return ("#4A3A0A" if self.t is DARK else "#FFF3CD", 0.9)
-            else:
-                return ("#0A4A7A" if self.t is DARK else "#D0E8FF", 0.9)
-        except Exception:
-            return (self.t["input_bg"], 0.9)
-
     def plot(self, structure, db):
-        self._structure = structure
-        self._db = db
-        self.fig.clear()
-        self.fig.set_facecolor(self.t["fig_bg"])
-
-        all_layers = (
+        self._st = structure; self._db = db
+        self.fig.clear(); self.fig.set_facecolor(self.t["plot_bg"])
+        layers = (
             [("incident", structure.incident, None)] +
             [(f"L{i+1}", l.material, l.thickness)
              for i, l in enumerate(structure.layers)] +
-            [("substrate", structure.substrate, None)]
-        )
-        n = len(all_layers)
-        ax = self.fig.add_subplot(111, facecolor=self.t["fig_bg"])
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, n + 0.5)
-        ax.axis("off")
-
-        for i, (role, mat, thick) in enumerate(reversed(all_layers)):
-            y = i
-            color, alpha = self._layer_color(role, mat)
-            edge = self.t["accent"] if role not in ("incident","substrate") else self.t["border"]
-            lw   = 1.0 if role not in ("incident","substrate") else 0.5
-
-            rect = mpatches.FancyBboxPatch(
-                (0.02, y + 0.05), 0.96, 0.87,
-                boxstyle="round,pad=0.01",
-                facecolor=color, edgecolor=edge,
-                linewidth=lw, alpha=alpha, zorder=2
-            )
-            ax.add_patch(rect)
-
+            [("substrate", structure.substrate, None)])
+        n = len(layers)
+        ax = self.fig.add_subplot(111, facecolor=self.t["plot_bg"])
+        ax.set_xlim(0, 1); ax.set_ylim(-0.1, n+0.4); ax.axis("off")
+        is_dark_theme = self.t is DARK
+        for i, (role, mat, thick) in enumerate(reversed(layers)):
+            is_film = role not in ("incident", "substrate")
             try:
-                n_val = mat.N_at(550).real
-            except Exception:
-                n_val = 0.0
-
-            if thick is not None:
-                label = f"{mat.name}   ·   n={n_val:.3f}   ·   {thick:.0f} nm"
-            else:
-                tag = "incident" if role == "incident" else "substrate"
-                label = f"{mat.name}   ·   n={n_val:.3f}   ({tag})"
-
-            ax.text(0.5, y + 0.47, label,
-                    ha="center", va="center",
-                    color=self.t["text"], fontsize=9,
-                    fontweight="600" if role not in ("incident","substrate") else "400",
+                k = mat.N_at(550).imag
+                if not is_film:
+                    color = self.t["input"]
+                elif k > 0.1:
+                    color = "#3A2A08" if is_dark_theme else "#FFF3CD"
+                else:
+                    color = "#08354A" if is_dark_theme else "#D0EAFF"
+            except:
+                color = self.t["input"]
+            alpha = 0.95 if is_film else 0.5
+            edge  = self.t["accent"] if is_film else self.t["line1"]
+            lw    = 1.0 if is_film else 0.5
+            rect  = mpatches.FancyBboxPatch(
+                (0.03, i+0.06), 0.94, 0.85,
+                boxstyle="round,pad=0.012",
+                facecolor=color, edgecolor=edge,
+                linewidth=lw, alpha=alpha, zorder=2)
+            ax.add_patch(rect)
+            try: nv = mat.N_at(550).real
+            except: nv = 0.0
+            label = (f"{mat.name}   n={nv:.3f}   d={thick:.0f} nm"
+                     if thick is not None
+                     else f"{mat.name}   n={nv:.3f}   ({'incident' if role=='incident' else 'substrate'})")
+            ax.text(0.5, i+0.47, label, ha="center", va="center",
+                    color=self.t["t0"] if is_film else self.t["t1"],
+                    fontsize=9,
+                    fontweight="600" if is_film else "400",
                     zorder=3)
-
-        ax.annotate("", xy=(0.5, n - 0.4), xytext=(0.5, n + 0.2),
+        ax.annotate("", xy=(0.5, n-0.2), xytext=(0.5, n+0.3),
                     arrowprops=dict(arrowstyle="-|>",
-                                   color=self.t["accent"], lw=1.5), zorder=4)
-        ax.text(0.5, n + 0.3, "Incident light",
-                ha="center", va="bottom", color=self.t["accent"],
-                fontsize=9, fontweight="600")
-
-        self.fig.tight_layout(pad=0.5)
-        self.draw()
-
-
-# =============================================================================
-# RESULTS TABLE
-# =============================================================================
-
-class ResultsTable(QTableWidget):
-    def __init__(self):
-        super().__init__(0, 4)
-        self.setHorizontalHeaderLabels(["λ (nm)", "R (%)", "T (%)", "A (%)"])
-        self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.setAlternatingRowColors(True)
-        self.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-
-    def populate(self, result, step: int = 10):
-        self.setRowCount(0)
-        wl = result.wavelengths
-        for i in range(0, len(wl), step):
-            row = self.rowCount()
-            self.insertRow(row)
-            self.setItem(row, 0, QTableWidgetItem(f"{wl[i]:.1f}"))
-            self.setItem(row, 1, QTableWidgetItem(f"{result.R[i]*100:.3f}"))
-            self.setItem(row, 2, QTableWidgetItem(f"{result.T[i]*100:.3f}"))
-            self.setItem(row, 3, QTableWidgetItem(f"{result.A[i]*100:.3f}"))
-            self.item(row, 1).setForeground(QColor("#FF453A"))
-            self.item(row, 2).setForeground(QColor("#0A84FF"))
-            self.item(row, 3).setForeground(QColor("#30D158"))
+                                   color=self.t["accent"], lw=1.8), zorder=4)
+        ax.text(0.5, n+0.32, "incident light", ha="center", va="bottom",
+                color=self.t["accent"], fontsize=9, fontweight="600")
+        self.fig.tight_layout(pad=0.3); self.draw()
 
 
 # =============================================================================
@@ -640,568 +681,682 @@ class StratopticWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.db = RIIDatabase("data/rii_db")
-        self._last_result    = None
-        self._last_structure = None
-        self._theme_mode     = "auto"
-        self._theme          = DARK if system_is_dark() else LIGHT
+        self._last_result = self._last_structure = None
+        self._t = DARK if is_dark() else LIGHT
+        self._worker = None
 
         self.setWindowTitle("Stratoptic")
-        self.setMinimumSize(1300, 750)
-        self.resize(1500, 860)
-        self.setStyleSheet(build_style(self._theme))
-
+        self.setMinimumSize(1100, 680)
+        self.resize(1500, 900)
+        self.setStyleSheet(build_style(self._t))
         self._build_menu()
-        self._build_toolbar()
         self._build_ui()
         self.statusBar().showMessage(
-            "Stratoptic v0.5.0  ·  Gazi University Photonics  ·  Ready"
-        )
+            "Stratoptic v1.0  ·  Licensed for: Gazi University Photonics Research Center")
 
-    # ------------------------------------------------------------------
-    # Theme
-    # ------------------------------------------------------------------
+    # ── Theme ──────────────────────────────────────────────────────────
 
-    def _apply_theme(self, mode: str):
-        self._theme_mode = mode
-        if mode == "dark":
-            self._theme = DARK
-        elif mode == "light":
-            self._theme = LIGHT
-        else:
-            self._theme = DARK if system_is_dark() else LIGHT
+    def _set_theme(self, mode):
+        self._t = (DARK if (mode == "dark" or (mode == "auto" and is_dark()))
+                   else LIGHT)
+        self.setStyleSheet(build_style(self._t))
+        self.canvas.apply_theme(self._t)
+        self.stack_canvas.apply_theme(self._t)
+        self.disp_canvas.apply_theme(self._t)
 
-        self.setStyleSheet(build_style(self._theme))
-        self.canvas.apply_theme(self._theme)
-        self.stack_canvas.apply_theme(self._theme)
-        self.dispersion_canvas.apply_theme(self._theme)
-
-    # ------------------------------------------------------------------
-    # Menu
-    # ------------------------------------------------------------------
+    # ── Menu ───────────────────────────────────────────────────────────
 
     def _build_menu(self):
         mb = self.menuBar()
+        fm = mb.addMenu("File")
+        for txt, sc, fn in [
+            ("Export Spectrum (PNG)…", "Ctrl+E", self._export_png),
+            ("Export Data (CSV)…",     None,     self._export_csv),
+        ]:
+            a = QAction(txt, self)
+            if sc: a.setShortcut(sc)
+            a.triggered.connect(fn); fm.addAction(a)
+        fm.addSeparator()
+        q = QAction("Quit", self); q.setShortcut("Ctrl+Q")
+        q.triggered.connect(self.close); fm.addAction(q)
 
-        file_menu = mb.addMenu("File")
-        act_png = QAction("Export Spectrum (PNG)...", self)
-        act_png.setShortcut("Ctrl+E")
-        act_png.triggered.connect(self._export_png)
-        act_csv = QAction("Export Data (CSV)...", self)
-        act_csv.triggered.connect(self._export_csv)
-        act_quit = QAction("Quit", self)
-        act_quit.setShortcut("Ctrl+Q")
-        act_quit.triggered.connect(self.close)
-        file_menu.addAction(act_png)
-        file_menu.addAction(act_csv)
-        file_menu.addSeparator()
-        file_menu.addAction(act_quit)
+        vm = mb.addMenu("View")
+        tm = vm.addMenu("Theme")
+        grp = QActionGroup(self); grp.setExclusive(True)
+        for mode, label in [("auto","Auto"),("dark","Dark"),("light","Light")]:
+            a = QAction(label, self, checkable=True)
+            a.setChecked(mode == "auto")
+            a.triggered.connect(lambda c, m=mode: self._set_theme(m))
+            grp.addAction(a); tm.addAction(a)
 
-        view_menu = mb.addMenu("View")
-        theme_menu = view_menu.addMenu("Theme")
-        theme_group = QActionGroup(self)
-        theme_group.setExclusive(True)
-        for mode, label in [("auto", "Auto"), ("dark", "Dark"), ("light", "Light")]:
-            act = QAction(label, self, checkable=True)
-            act.setChecked(mode == "auto")
-            act.triggered.connect(lambda checked, m=mode: self._apply_theme(m))
-            theme_group.addAction(act)
-            theme_menu.addAction(act)
+        tom = mb.addMenu("Tools")
+        adb = QAction("Material Database…", self)
+        adb.triggered.connect(self._show_db); tom.addAction(adb)
 
-        tools_menu = mb.addMenu("Tools")
-        act_db = QAction("Material Database...", self)
-        act_db.triggered.connect(self._show_db)
-        tools_menu.addAction(act_db)
+        hm = mb.addMenu("Help")
+        ab = QAction("About Stratoptic", self)
+        ab.triggered.connect(self._show_about); hm.addAction(ab)
 
-        help_menu = mb.addMenu("Help")
-        act_about = QAction("About Stratoptic", self)
-        act_about.triggered.connect(self._show_about)
-        help_menu.addAction(act_about)
+    # ── UI skeleton ────────────────────────────────────────────────────
 
-    # ------------------------------------------------------------------
-    # Toolbar
-    # ------------------------------------------------------------------
+    def _build_ui(self):
+        root = QWidget(); root.setObjectName("root")
+        self.setCentralWidget(root)
+        vl = QVBoxLayout(root)
+        vl.setContentsMargins(0, 0, 0, 0); vl.setSpacing(0)
 
-    def _build_toolbar(self):
-        tb = QToolBar("Main")
-        tb.setMovable(False)
-        tb.setIconSize(QSize(16, 16))
-        self.addToolBar(tb)
+        vl.addWidget(self._build_ribbon())
+        vl.addWidget(self._build_sumbar())
 
-        btn_calc = QPushButton("▶  Calculate")
-        btn_calc.clicked.connect(self._calculate)
-        btn_calc.setFixedHeight(28)
-        tb.addWidget(btn_calc)
-        tb.addSeparator()
-        tb.addWidget(QLabel("  Show: "))
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setChildrenCollapsible(False)
+        sidebar = self._build_sidebar()
+        splitter.addWidget(sidebar)
+        splitter.addWidget(self._build_plotarea())
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
+        splitter.setSizes([300, 1200])
+        splitter.setHandleWidth(2)
+        vl.addWidget(splitter)
 
+    # ── Ribbon ─────────────────────────────────────────────────────────
+
+    def _build_ribbon(self):
+        ribbon = QWidget(); ribbon.setObjectName("ribbon")
+        ribbon.setFixedHeight(92)
+        hl = QHBoxLayout(ribbon)
+        hl.setContentsMargins(16, 0, 12, 0); hl.setSpacing(0)
+
+        # App identity
+        id_w = QWidget()
+        id_l = QVBoxLayout(id_w); id_l.setContentsMargins(0,0,0,0); id_l.setSpacing(1)
+        id_l.addStretch()
+        name = QLabel("STRATOPTIC"); name.setObjectName("appname")
+        sub  = QLabel("Thin Film Simulation Platform"); sub.setObjectName("appsub")
+        id_l.addWidget(name); id_l.addWidget(sub)
+        id_l.addStretch()
+        hl.addWidget(id_w)
+        hl.addSpacing(16)
+        hl.addWidget(vdiv(self._t))
+        hl.addSpacing(14)
+
+        # ── Calculation section ───────────────────────────────────────
+        calc_w = QWidget()
+        calc_l = QVBoxLayout(calc_w)
+        calc_l.setContentsMargins(0, 8, 0, 4); calc_l.setSpacing(6)
+        calc_l.addWidget(sec("Calculation"))
+
+        r1 = QHBoxLayout(); r1.setSpacing(8)
+        r1.addWidget(muted("λ range"))
+        self.spin_wl_min = QSpinBox(); self.spin_wl_min.setRange(100, 5000)
+        self.spin_wl_min.setValue(380); self.spin_wl_min.setSuffix(" nm")
+        self.spin_wl_min.setFixedWidth(82)
+        dash1 = muted("–"); dash1.setFixedWidth(8)
+        dash1.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.spin_wl_max = QSpinBox(); self.spin_wl_max.setRange(100, 5000)
+        self.spin_wl_max.setValue(800); self.spin_wl_max.setSuffix(" nm")
+        self.spin_wl_max.setFixedWidth(82)
+        r1.addWidget(self.spin_wl_min); r1.addWidget(dash1); r1.addWidget(self.spin_wl_max)
+        r1.addSpacing(10)
+        r1.addWidget(muted("pts"))
+        self.spin_pts = QSpinBox(); self.spin_pts.setRange(50, 5000)
+        self.spin_pts.setValue(500); self.spin_pts.setFixedWidth(68)
+        r1.addWidget(self.spin_pts)
+        calc_l.addLayout(r1)
+
+        r2 = QHBoxLayout(); r2.setSpacing(8)
+        r2.addWidget(muted("θ"))
+        self.spin_angle = QDoubleSpinBox(); self.spin_angle.setRange(0, 89.9)
+        self.spin_angle.setValue(0.0); self.spin_angle.setSuffix(" °")
+        self.spin_angle.setSingleStep(1.0); self.spin_angle.setFixedWidth(70)
+        r2.addWidget(self.spin_angle)
+        r2.addSpacing(10)
+        r2.addWidget(muted("pol"))
+        self.combo_pol = QComboBox()
+        self.combo_pol.addItems(["s (TE)", "p (TM)", "Unpolarized"])
+        self.combo_pol.setFixedWidth(112)
+        r2.addWidget(self.combo_pol)
+        calc_l.addLayout(r2)
+
+        hl.addWidget(calc_w)
+        hl.addSpacing(10)
+        hl.addWidget(vdiv(self._t))
+        hl.addSpacing(14)
+
+        # ── Optimization section ──────────────────────────────────────
+        opt_w = QWidget()
+        opt_l = QVBoxLayout(opt_w)
+        opt_l.setContentsMargins(0, 8, 0, 4); opt_l.setSpacing(6)
+        opt_l.addWidget(sec("Optimization"))
+
+        ob = QHBoxLayout(); ob.setSpacing(8)
+        ob.addWidget(muted("d bounds"))
+        self.spin_d_min = QSpinBox(); self.spin_d_min.setRange(1, 10000)
+        self.spin_d_min.setValue(1); self.spin_d_min.setSuffix(" nm")
+        self.spin_d_min.setFixedWidth(74)
+        dash2 = muted("–"); dash2.setFixedWidth(8)
+        dash2.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.spin_d_max = QSpinBox(); self.spin_d_max.setRange(1, 10000)
+        self.spin_d_max.setValue(500); self.spin_d_max.setSuffix(" nm")
+        self.spin_d_max.setFixedWidth(74)
+        ob.addWidget(self.spin_d_min); ob.addWidget(dash2); ob.addWidget(self.spin_d_max)
+        opt_l.addLayout(ob)
+
+        self.btn_opt = QPushButton("⚙  Optimize")
+        self.btn_opt.setObjectName("warn")
+        self.btn_opt.setFixedHeight(30)
+        self.btn_opt.clicked.connect(self._run_optimization)
+        opt_hint = muted("Check 'Opt' column in layer table")
+        opt_l.addWidget(opt_hint)
+        opt_l.addWidget(self.btn_opt)
+
+        hl.addWidget(opt_w)
+        hl.addSpacing(10)
+        hl.addWidget(vdiv(self._t))
+        hl.addSpacing(12)
+
+        # ── Show + Calculate ──────────────────────────────────────────
+        right_w = QWidget()
+        right_l = QVBoxLayout(right_w)
+        right_l.setContentsMargins(0, 8, 0, 4); right_l.setSpacing(8)
+        right_l.addStretch()
+
+        show_r = QHBoxLayout(); show_r.setSpacing(8)
+        show_r.addWidget(muted("Show:"))
         self.chk_R = QCheckBox("R"); self.chk_R.setChecked(True)
         self.chk_T = QCheckBox("T"); self.chk_T.setChecked(True)
         self.chk_A = QCheckBox("A"); self.chk_A.setChecked(True)
+        # Colored indicators
+        self.chk_R.setStyleSheet(
+            "QCheckBox{color:#FF453A;font-weight:700;spacing:5px;}"
+            "QCheckBox::indicator{background:#FF453A25;border:1.5px solid #FF453A88;border-radius:4px;width:14px;height:14px;}"
+            "QCheckBox::indicator:hover{border-color:#FF453A;}"
+            "QCheckBox::indicator:checked{background:#FF453A;border-color:#FF453A;}"
+        )
+        self.chk_T.setStyleSheet(
+            "QCheckBox{color:#0A84FF;font-weight:700;spacing:5px;}"
+            "QCheckBox::indicator{background:#0A84FF25;border:1.5px solid #0A84FF88;border-radius:4px;width:14px;height:14px;}"
+            "QCheckBox::indicator:hover{border-color:#0A84FF;}"
+            "QCheckBox::indicator:checked{background:#0A84FF;border-color:#0A84FF;}"
+        )
+        self.chk_A.setStyleSheet(
+            "QCheckBox{color:#32D74B;font-weight:700;spacing:5px;}"
+            "QCheckBox::indicator{background:#32D74B25;border:1.5px solid #32D74B88;border-radius:4px;width:14px;height:14px;}"
+            "QCheckBox::indicator:hover{border-color:#32D74B;}"
+            "QCheckBox::indicator:checked{background:#32D74B;border-color:#32D74B;}"
+        )
         for chk in [self.chk_R, self.chk_T, self.chk_A]:
             chk.stateChanged.connect(self._replot)
-            tb.addWidget(chk)
+            show_r.addWidget(chk)
+        right_l.addLayout(show_r)
 
-    # ------------------------------------------------------------------
-    # UI
-    # ------------------------------------------------------------------
+        self.btn_calc = QPushButton("Calculate")
+        self.btn_calc.setObjectName("calc")
+        self.btn_calc.clicked.connect(self._calculate)
+        right_l.addWidget(self.btn_calc)
+        right_l.addStretch()
+        hl.addWidget(right_w)
 
-    def _build_ui(self):
-        central = QWidget()
-        central.setObjectName("central")
-        self.setCentralWidget(central)
-        root = QHBoxLayout(central)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
+        return ribbon
 
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.addWidget(self._build_left())
-        splitter.addWidget(self._build_right())
-        splitter.setSizes([360, 1100])
-        splitter.setHandleWidth(1)
-        root.addWidget(splitter)
+    # ── Summary bar ────────────────────────────────────────────────────
 
-    def _build_left(self) -> QWidget:
-        w = QWidget()
-        w.setObjectName("left_panel")
-        w.setMinimumWidth(300)
-        w.setMaximumWidth(420)
-        layout = QVBoxLayout(w)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(10)
-
-        name_lbl = QLabel("STRATOPTIC")
-        name_lbl.setObjectName("label_app_name")
-        sub_lbl = QLabel("Thin Film Simulation Platform")
-        sub_lbl.setObjectName("label_app_sub")
-        layout.addWidget(name_lbl)
-        layout.addWidget(sub_lbl)
-
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet(f"color: {self._theme['border']};")
-        layout.addWidget(sep)
-
-        layout.addWidget(self._build_structure_group())
-        layout.addWidget(self._build_settings_group())
-
-        btn_calc = QPushButton("▶   Calculate Spectrum")
-        btn_calc.setMinimumHeight(36)
-        btn_calc.clicked.connect(self._calculate)
-        layout.addWidget(btn_calc)
-        layout.addStretch()
+    def _build_sumbar(self):
+        w = QWidget(); w.setObjectName("sumbar"); w.setFixedHeight(44)
+        hl = QHBoxLayout(w); hl.setContentsMargins(20, 0, 20, 0); hl.setSpacing(0)
+        self._sw = {}
+        for key, label, color in [
+            ("R", "avg Reflectance",   "#FF453A"),
+            ("T", "avg Transmittance", "#0A84FF"),
+            ("A", "avg Absorbance",    "#32D74B"),
+        ]:
+            cell = QWidget()
+            cl = QHBoxLayout(cell); cl.setContentsMargins(0, 0, 0, 0); cl.setSpacing(8)
+            val = QLabel("—"); val.setObjectName("statval")
+            val.setStyleSheet(f"color:{color};font-size:15px;font-weight:700;")
+            kl  = QLabel(label); kl.setObjectName("statkey")
+            cl.addWidget(val); cl.addWidget(kl)
+            self._sw[key] = val; hl.addWidget(cell)
+            if key != "A":
+                sep = QFrame(); sep.setFrameShape(QFrame.Shape.VLine)
+                sep.setStyleSheet(
+                    f"background:{self._t['line0']};max-width:1px;border:none;")
+                hl.addSpacing(18); hl.addWidget(sep); hl.addSpacing(18)
+        hl.addStretch()
+        self.lbl_info = QLabel(""); self.lbl_info.setObjectName("statkey")
+        self.lbl_info.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        hl.addWidget(self.lbl_info)
         return w
 
-    def _build_structure_group(self) -> QGroupBox:
-        g = QGroupBox("Structure")
-        layout = QVBoxLayout(g)
-        layout.setSpacing(6)
+    # ── Sidebar ────────────────────────────────────────────────────────
 
-        # Incident
-        row = QHBoxLayout()
-        lbl = QLabel("Incident")
-        lbl.setObjectName("label_section")
-        lbl.setFixedWidth(65)
-        row.addWidget(lbl)
-        self.combo_incident = QComboBox()
-        incident_fixed = ["Air", "Vacuum", "SiO2", "MgF2",
-                          "Al2O3", "CaF2", "Glass_BK7"]
-        for m in incident_fixed:
-            self.combo_incident.addItem(m)
+    def _build_sidebar(self):
+        outer = QWidget(); outer.setObjectName("sidebar")
+        outer.setMinimumWidth(240)
+        outer.setSizePolicy(QSizePolicy.Policy.Preferred,
+                            QSizePolicy.Policy.Expanding)
+        ol = QVBoxLayout(outer); ol.setContentsMargins(0, 0, 0, 0); ol.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        inner = QWidget()
+        il = QVBoxLayout(inner); il.setContentsMargins(14, 14, 14, 14); il.setSpacing(14)
+
+        # ── Incident ──────────────────────────────────────────────────
+        il.addWidget(sec("Incident Medium"))
+        self.combo_inc = QComboBox()
+        self.combo_inc.addItem("— Select incident medium —")
+        inc_fixed = ["Air","Vacuum","SiO2","MgF2","Al2O3","CaF2","Glass_BK7"]
+        for m in inc_fixed: self.combo_inc.addItem(m)
         for key, mats in sorted(self.db._index.items()):
             try:
-                N = mats[0].N_at(550)
-                name = mats[0].name
-                if (N.imag < 0.001 and 1.0 < N.real < 2.0
-                        and name not in incident_fixed):
-                    self.combo_incident.addItem(name)
-            except Exception:
-                pass
-        row.addWidget(self.combo_incident)
-        layout.addLayout(row)
+                N = mats[0].N_at(550); name = mats[0].name
+                if N.imag < 0.001 and 1.0 < N.real < 2.0 and name not in inc_fixed:
+                    self.combo_inc.addItem(name)
+            except: pass
+        il.addWidget(self.combo_inc)
+        il.addWidget(hdiv(self._t))
 
-        # Layer table
-        self.table = QTableWidget(0, 3)
-        self.table.setHorizontalHeaderLabels(["Material", "d (nm)", ""])
-        self.table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.ResizeMode.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(
-            2, QHeaderView.ResizeMode.Fixed)
-        self.table.setColumnWidth(2, 36)
-        self.table.setMinimumHeight(150)
-        self.table.setMaximumHeight(220)
-        self.table.setAlternatingRowColors(True)
-        self.table.verticalHeader().setVisible(False)
-        layout.addWidget(self.table)
+        # ── Layers ────────────────────────────────────────────────────
+        il.addWidget(sec("Layers"))
 
-        # Add layer controls
-        add_row = QHBoxLayout()
+        # Add row — all same height, properly aligned
+        add_r = QHBoxLayout(); add_r.setSpacing(6)
         self.combo_mat = QComboBox()
-        priority = ["TiO2", "SiO2", "Ag", "Au", "Al", "Cr",
-                    "MgF2", "Al2O3", "HfO2", "Ta2O5", "ZnO",
-                    "Si3N4", "Cu", "Pt"]
-        mats = [p for p in priority if p.lower() in self.db._index]
+        self.combo_mat.addItem("— Select material —")
+        priority = ["TiO2","SiO2","Ag","Au","Al","Cr","MgF2","Al2O3",
+                    "HfO2","Ta2O5","ZnO","Si3N4","Cu","Pt"]
+        mats_list = [p for p in priority if p.lower() in self.db._index]
         for key in sorted(self.db._index.keys()):
             name = self.db._index[key][0].name
-            if name not in mats and key not in ("air", "vacuum"):
-                mats.append(name)
-        for m in mats:
-            self.combo_mat.addItem(m)
-
-        # Malzeme değişince dispersiyon grafiği otomatik güncellenir
+            if name not in mats_list and key not in ("air","vacuum"):
+                mats_list.append(name)
+        for m in mats_list: self.combo_mat.addItem(m)
         self.combo_mat.currentTextChanged.connect(self._update_dispersion)
 
         self.spin_d = QDoubleSpinBox()
-        self.spin_d.setRange(0.1, 50000)
-        self.spin_d.setValue(100.0)
-        self.spin_d.setDecimals(1)
-        self.spin_d.setSuffix(" nm")
+        self.spin_d.setRange(0.1, 50000); self.spin_d.setValue(100.0)
+        self.spin_d.setDecimals(1); self.spin_d.setSuffix(" nm")
+        self.spin_d.setFixedWidth(92)
 
-        btn_add = QPushButton("+ Add")
-        btn_add.setObjectName("btn_add")
-        btn_add.setFixedWidth(60)
+        btn_add = QPushButton("+ Add"); btn_add.setObjectName("ghost")
+        btn_add.setFixedWidth(70); btn_add.setFixedHeight(28)
         btn_add.clicked.connect(self._add_layer)
 
-        add_row.addWidget(self.combo_mat, 3)
-        add_row.addWidget(self.spin_d, 2)
-        add_row.addWidget(btn_add, 1)
-        layout.addLayout(add_row)
+        add_r.addWidget(self.combo_mat, 1)
+        add_r.addWidget(self.spin_d)
+        add_r.addWidget(btn_add)
+        il.addLayout(add_r)
 
-        # Substrate
-        row2 = QHBoxLayout()
-        lbl2 = QLabel("Substrate")
-        lbl2.setObjectName("label_section")
-        lbl2.setFixedWidth(65)
-        row2.addWidget(lbl2)
-        self.combo_substrate = QComboBox()
-        substrate_fixed = ["Glass_BK7", "SiO2", "Al2O3", "CaF2", "MgF2"]
-        for m in substrate_fixed:
-            self.combo_substrate.addItem(m)
-        for key, mats_list in sorted(self.db._index.items()):
+        # Layer table
+        self.layer_table = QTableWidget(0, 4)
+        self.layer_table.setHorizontalHeaderLabels(["Material", "d (nm)", "Opt", ""])
+        self.layer_table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Stretch)
+        self.layer_table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.ResizeToContents)
+        # Fixed columns for Opt and remove button
+        self.layer_table.horizontalHeader().setSectionResizeMode(
+            2, QHeaderView.ResizeMode.Fixed)
+        self.layer_table.horizontalHeader().setSectionResizeMode(
+            3, QHeaderView.ResizeMode.Fixed)
+        self.layer_table.setColumnWidth(2, 36)
+        self.layer_table.setColumnWidth(3, 30)
+        self.layer_table.setAlternatingRowColors(True)
+        self.layer_table.verticalHeader().setVisible(False)
+        self.layer_table.setMinimumHeight(100)
+        self.layer_table.setMaximumHeight(260)
+        # Row height
+        self.layer_table.verticalHeader().setDefaultSectionSize(28)
+        il.addWidget(self.layer_table)
+        il.addWidget(hdiv(self._t))
+
+        # ── Substrate ─────────────────────────────────────────────────
+        il.addWidget(sec("Substrate"))
+        self.combo_sub = QComboBox()
+        self.combo_sub.addItem("— Select substrate —")
+        sub_fixed = ["Glass_BK7","SiO2","Al2O3","CaF2","MgF2"]
+        for m in sub_fixed: self.combo_sub.addItem(m)
+        for key, ml in sorted(self.db._index.items()):
             try:
-                N = mats_list[0].N_at(550)
-                name = mats_list[0].name
-                if (N.imag < 0.01 and N.real > 1.0
-                        and name not in substrate_fixed):
-                    self.combo_substrate.addItem(name)
-            except Exception:
-                pass
-        row2.addWidget(self.combo_substrate)
-        layout.addLayout(row2)
+                N = ml[0].N_at(550); name = ml[0].name
+                if N.imag < 0.01 and N.real > 1.0 and name not in sub_fixed:
+                    self.combo_sub.addItem(name)
+            except: pass
+        il.addWidget(self.combo_sub)
+        il.addWidget(hdiv(self._t))
 
-        return g
+        # ── Optimization Conditions ───────────────────────────────────
+        il.addWidget(sec("Optimization Conditions"))
 
-    def _build_settings_group(self) -> QGroupBox:
-        g = QGroupBox("Calculation Settings")
-        layout = QVBoxLayout(g)
-        layout.setSpacing(6)
+        # Conditions table — 6 columns, fixed widths that actually fit
+        self.cond_table = QTableWidget(0, 6)
+        self.cond_table.setHorizontalHeaderLabels(
+            ["λ min", "λ max", "Metric", "Goal", "Weight", ""])
+        col_widths = [60, 60, 48, 44, 56, 28]
+        for i, w in enumerate(col_widths):
+            self.cond_table.horizontalHeader().setSectionResizeMode(
+                i, QHeaderView.ResizeMode.Fixed)
+            self.cond_table.setColumnWidth(i, w)
+        self.cond_table.setAlternatingRowColors(True)
+        self.cond_table.verticalHeader().setVisible(False)
+        self.cond_table.verticalHeader().setDefaultSectionSize(26)
+        self.cond_table.setMinimumHeight(60)
+        self.cond_table.setMaximumHeight(160)
+        il.addWidget(self.cond_table)
 
-        def row_widget(label, widget):
-            r = QHBoxLayout()
-            lbl = QLabel(label)
-            lbl.setObjectName("label_section")
-            lbl.setFixedWidth(80)
-            r.addWidget(lbl)
-            r.addWidget(widget)
-            return r
+        # Add condition row 1: λ range
+        cr1 = QHBoxLayout(); cr1.setSpacing(6)
+        cr1.addWidget(muted("λ:"))
+        self.spin_cwl0 = QSpinBox(); self.spin_cwl0.setRange(100, 5000)
+        self.spin_cwl0.setValue(380); self.spin_cwl0.setSuffix(" nm")
+        d_lbl = muted("–"); d_lbl.setFixedWidth(8)
+        d_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.spin_cwl1 = QSpinBox(); self.spin_cwl1.setRange(100, 5000)
+        self.spin_cwl1.setValue(700); self.spin_cwl1.setSuffix(" nm")
+        cr1.addWidget(self.spin_cwl0, 1); cr1.addWidget(d_lbl)
+        cr1.addWidget(self.spin_cwl1, 1)
+        il.addLayout(cr1)
 
-        wl_row = QHBoxLayout()
-        lbl_wl = QLabel("λ range")
-        lbl_wl.setObjectName("label_section")
-        lbl_wl.setFixedWidth(80)
-        self.spin_wl_min = QSpinBox()
-        self.spin_wl_min.setRange(100, 5000)
-        self.spin_wl_min.setValue(380)
-        self.spin_wl_min.setSuffix(" nm")
-        dash = QLabel("–")
-        dash.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        dash.setFixedWidth(12)
-        self.spin_wl_max = QSpinBox()
-        self.spin_wl_max.setRange(100, 5000)
-        self.spin_wl_max.setValue(800)
-        self.spin_wl_max.setSuffix(" nm")
-        wl_row.addWidget(lbl_wl)
-        wl_row.addWidget(self.spin_wl_min)
-        wl_row.addWidget(dash)
-        wl_row.addWidget(self.spin_wl_max)
-        layout.addLayout(wl_row)
+        # Add condition row 2: metric / goal / weight / add button
+        cr2 = QHBoxLayout(); cr2.setSpacing(6)
+        self.combo_cm = QComboBox(); self.combo_cm.addItems(["R","T","A"])
+        self.combo_cm.setFixedWidth(54)
+        self.combo_cg = QComboBox(); self.combo_cg.addItems(["max","min"])
+        self.combo_cg.setFixedWidth(60)
+        self.spin_cw = QDoubleSpinBox()
+        self.spin_cw.setRange(0.01, 10.0); self.spin_cw.setValue(1.0)
+        self.spin_cw.setSingleStep(0.1); self.spin_cw.setFixedWidth(58)
+        btn_cadd = QPushButton("+ Add"); btn_cadd.setObjectName("ghost")
+        btn_cadd.setFixedHeight(28); btn_cadd.clicked.connect(self._add_cond)
+        cr2.addWidget(self.combo_cm)
+        cr2.addWidget(self.combo_cg)
+        cr2.addWidget(self.spin_cw)
+        cr2.addWidget(btn_cadd)
+        il.addLayout(cr2)
 
-        self.spin_pts = QSpinBox()
-        self.spin_pts.setRange(50, 5000)
-        self.spin_pts.setValue(500)
-        layout.addLayout(row_widget("Points", self.spin_pts))
+        il.addStretch()
+        scroll.setWidget(inner)
+        ol.addWidget(scroll)
+        return outer
 
-        self.spin_angle = QDoubleSpinBox()
-        self.spin_angle.setRange(0.0, 89.9)
-        self.spin_angle.setValue(0.0)
-        self.spin_angle.setSuffix(" °")
-        self.spin_angle.setSingleStep(1.0)
-        layout.addLayout(row_widget("Angle (θ)", self.spin_angle))
+    # ── Plot area ──────────────────────────────────────────────────────
 
-        self.combo_pol = QComboBox()
-        self.combo_pol.addItems(["s (TE)", "p (TM)", "Unpolarized"])
-        layout.addLayout(row_widget("Polarization", self.combo_pol))
+    def _build_plotarea(self):
+        w = QWidget(); w.setObjectName("plotarea")
+        vl = QVBoxLayout(w); vl.setContentsMargins(8, 4, 8, 4); vl.setSpacing(4)
 
-        return g
+        vsplit = QSplitter(Qt.Orientation.Vertical)
+        vsplit.setChildrenCollapsible(False)
 
-    def _build_right(self) -> QWidget:
-        w = QWidget()
-        w.setObjectName("right_panel")
-        layout = QVBoxLayout(w)
-        layout.setContentsMargins(12, 8, 12, 8)
-        layout.setSpacing(8)
-
-        layout.addWidget(self._build_summary_row())
-
-        v_splitter = QSplitter(Qt.Orientation.Vertical)
-
-        # Spectrum canvas
-        self.canvas = SpectrumCanvas(self._theme)
+        # Spectrum + toolbar
+        self.canvas = SpectrumCanvas(self._t)
         nav = NavigationToolbar(self.canvas, w)
-        nav.setStyleSheet(f"background: {self._theme['panel_bg']}; "
-                          f"color: {self._theme['muted']};")
+        # Remove subplot/customize buttons
+        for action in nav.actions():
+            if action.text() in ("Subplots", "Customize"):
+                nav.removeAction(action)
         spec_w = QWidget()
-        spec_layout = QVBoxLayout(spec_w)
-        spec_layout.setContentsMargins(0, 0, 0, 0)
-        spec_layout.setSpacing(2)
-        spec_layout.addWidget(self.canvas)
-        spec_layout.addWidget(nav)
-        v_splitter.addWidget(spec_w)
+        sl = QVBoxLayout(spec_w); sl.setContentsMargins(0, 0, 0, 0); sl.setSpacing(0)
+        sl.addWidget(self.canvas)
+        sl.addWidget(nav)
+        vsplit.addWidget(spec_w)
 
-        # Bottom tabs
-        self.tabs = QTabWidget()
-        self.stack_canvas = StackCanvas(self._theme)
-        self.tabs.addTab(self.stack_canvas, "Layer Stack")
-        self.results_table = ResultsTable()
-        self.tabs.addTab(self.results_table, "Spectral Data")
-        self.dispersion_canvas = DispersionCanvas(self._theme)
-        self.tabs.addTab(self.dispersion_canvas, "Dispersion")
+        # Bottom tabs — expanding tabs so names are fully visible
+        self.btabs = QTabWidget()
+        self.btabs.setDocumentMode(True)
+        self.btabs.tabBar().setExpanding(True)
 
-        v_splitter.addWidget(self.tabs)
-        v_splitter.setSizes([480, 220])
-        v_splitter.setHandleWidth(1)
-        layout.addWidget(v_splitter)
+        self.stack_canvas = StackCanvas(self._t)
+        self.btabs.addTab(self.stack_canvas, "Layer Stack")
+
+        res_w = QTableWidget(0, 4)
+        res_w.setHorizontalHeaderLabels(["λ (nm)","R (%)","T (%)","A (%)"])
+        res_w.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        res_w.setAlternatingRowColors(True)
+        res_w.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.res_table = res_w
+        self.btabs.addTab(res_w, "Spectral Data")
+
+        self.disp_canvas = DispersionCanvas(self._t)
+        self.btabs.addTab(self.disp_canvas, "Dispersion")
+
+        vsplit.addWidget(self.btabs)
+        vsplit.setSizes([540, 200])
+        vl.addWidget(vsplit)
         return w
 
-    def _build_summary_row(self) -> QWidget:
-        w = QWidget()
-        w.setStyleSheet(f"background: {self._theme['panel_bg']}; border-radius: 6px;")
-        layout = QHBoxLayout(w)
-        layout.setContentsMargins(16, 8, 16, 8)
-        layout.setSpacing(0)
-        w.setFixedHeight(56)
-
-        self._summary_widgets = {}
-        for key, label, color in [
-            ("R", "Reflectance",   "#FF453A"),
-            ("T", "Transmittance", "#0A84FF"),
-            ("A", "Absorbance",    "#30D158"),
-        ]:
-            cell = QWidget()
-            cl = QVBoxLayout(cell)
-            cl.setContentsMargins(20, 4, 20, 4)
-            cl.setSpacing(1)
-            val_lbl = QLabel("—")
-            val_lbl.setStyleSheet(
-                f"color: {color}; font-size: 16px; font-weight: 700;")
-            key_lbl = QLabel(f"avg {label}")
-            key_lbl.setObjectName("label_section")
-            cl.addWidget(val_lbl)
-            cl.addWidget(key_lbl)
-            self._summary_widgets[key] = val_lbl
-            layout.addWidget(cell)
-            if key != "A":
-                sep = QFrame()
-                sep.setFrameShape(QFrame.Shape.VLine)
-                sep.setStyleSheet(f"color: {self._theme['border']};")
-                layout.addWidget(sep)
-
-        layout.addStretch()
-        self.lbl_info = QLabel("")
-        self.lbl_info.setStyleSheet(
-            f"color: {self._theme['muted']}; font-size: 10px;")
-        self.lbl_info.setAlignment(
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        layout.addWidget(self.lbl_info)
-        return w
-
-    # ------------------------------------------------------------------
-    # Layer management
-    # ------------------------------------------------------------------
+    # ── Layer management ───────────────────────────────────────────────
 
     def _add_layer(self):
         mat = self.combo_mat.currentText()
-        d   = self.spin_d.value()
-        row = self.table.rowCount()
-        self.table.insertRow(row)
-        self.table.setItem(row, 0, QTableWidgetItem(mat))
-        self.table.setItem(row, 1, QTableWidgetItem(f"{d:.1f}"))
-        btn = QPushButton("✕")
-        btn.setObjectName("btn_remove")
-        btn.setFixedSize(30, 22)
-        btn.clicked.connect(self._remove_current_layer)
-        self.table.setCellWidget(row, 2, btn)
-        self._update_stack_diagram()
+        if mat.startswith("—"):
+            self.statusBar().showMessage("Please select a material first."); return
+        d = self.spin_d.value()
+        row = self.layer_table.rowCount(); self.layer_table.insertRow(row)
+        self.layer_table.setItem(row, 0, QTableWidgetItem(mat))
+        self.layer_table.setItem(row, 1, QTableWidgetItem(f"{d:.1f}"))
+        # Opt checkbox — centered
+        cw = QWidget(); cl = QHBoxLayout(cw)
+        cl.setContentsMargins(0, 0, 0, 0); cl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        chk = QCheckBox(); cl.addWidget(chk)
+        self.layer_table.setCellWidget(row, 2, cw)
+        # Remove button — fits in row
+        btn = QPushButton("✕"); btn.setObjectName("rm")
+        btn.setFixedSize(26, 22); btn.clicked.connect(self._remove_layer)
+        self.layer_table.setCellWidget(row, 3, btn)
+        self._refresh_stack()
         self.statusBar().showMessage(f"Added: {mat}  {d:.1f} nm")
 
-    def _remove_current_layer(self):
+    def _remove_layer(self):
         btn = self.sender()
-        for row in range(self.table.rowCount()):
-            if self.table.cellWidget(row, 2) is btn:
-                self.table.removeRow(row)
-                break
-        self._update_stack_diagram()
+        for row in range(self.layer_table.rowCount()):
+            if self.layer_table.cellWidget(row, 3) is btn:
+                self.layer_table.removeRow(row); break
+        self._refresh_stack()
 
-    def _build_structure(self) -> Structure:
-        incident  = self.db.get(self.combo_incident.currentText())
-        substrate = self.db.get(self.combo_substrate.currentText())
+    def _get_opt_idx(self):
+        return [r for r in range(self.layer_table.rowCount())
+                if (w := self.layer_table.cellWidget(r, 2)) and
+                   (c := w.findChild(QCheckBox)) and c.isChecked()]
+
+    def _build_structure(self):
+        inc = self.combo_inc.currentText()
+        sub = self.combo_sub.currentText()
+        if inc.startswith("—") or sub.startswith("—"):
+            raise ValueError("Please select incident medium and substrate.")
         layers = []
-        for row in range(self.table.rowCount()):
-            mat = self.db.get(self.table.item(row, 0).text())
-            d   = float(self.table.item(row, 1).text())
+        for r in range(self.layer_table.rowCount()):
+            mat = self.db.get(self.layer_table.item(r, 0).text())
+            d   = float(self.layer_table.item(r, 1).text())
             layers.append(Layer(mat, d))
-        return Structure(layers=layers, incident=incident,
-                         substrate=substrate, substrate_coherent=False)
+        return Structure(layers=layers,
+                         incident=self.db.get(inc),
+                         substrate=self.db.get(sub),
+                         substrate_coherent=False)
 
-    def _update_stack_diagram(self):
-        try:
-            structure = self._build_structure()
-            self.stack_canvas.plot(structure, self.db)
-        except Exception:
-            pass
+    def _build_structure_opt(self, opt_idx, thicknesses):
+        inc = self.combo_inc.currentText()
+        sub = self.combo_sub.currentText()
+        if inc.startswith("—"): inc = "Air"
+        if sub.startswith("—"): sub = "Glass_BK7"
+        layers = []; it = iter(thicknesses)
+        for r in range(self.layer_table.rowCount()):
+            mat = self.db.get(self.layer_table.item(r, 0).text())
+            d   = next(it) if r in opt_idx else float(self.layer_table.item(r, 1).text())
+            layers.append(Layer(mat, d))
+        return Structure(layers=layers,
+                         incident=self.db.get(inc),
+                         substrate=self.db.get(sub),
+                         substrate_coherent=False)
 
-    def _update_dispersion(self, mat_name: str):
-        """Auto-update dispersion canvas when material combo changes."""
+    def _refresh_stack(self):
+        try: self.stack_canvas.plot(self._build_structure(), self.db)
+        except: self.stack_canvas._empty()
+
+    def _update_dispersion(self, mat_name):
+        if mat_name.startswith("—"): return
         try:
             mat = self.db.get(mat_name)
-            self.dispersion_canvas.plot(mat, self.db)
-            # Switch to dispersion tab so user sees it immediately
-            self.tabs.setCurrentWidget(self.dispersion_canvas)
-        except Exception:
-            pass
+            self.disp_canvas.plot(mat, self.db)
+            self.btabs.setCurrentWidget(self.disp_canvas)
+        except: pass
 
-    # ------------------------------------------------------------------
-    # Calculation
-    # ------------------------------------------------------------------
+    # ── Conditions ────────────────────────────────────────────────────
 
-    def _get_pol(self) -> str:
+    def _add_cond(self):
+        wl0 = self.spin_cwl0.value(); wl1 = self.spin_cwl1.value()
+        if wl0 >= wl1:
+            self.statusBar().showMessage("λ min must be < λ max"); return
+        row = self.cond_table.rowCount(); self.cond_table.insertRow(row)
+        self.cond_table.setItem(row, 0, QTableWidgetItem(str(wl0)))
+        self.cond_table.setItem(row, 1, QTableWidgetItem(str(wl1)))
+        self.cond_table.setItem(row, 2, QTableWidgetItem(self.combo_cm.currentText()))
+        self.cond_table.setItem(row, 3, QTableWidgetItem(self.combo_cg.currentText()))
+        self.cond_table.setItem(row, 4, QTableWidgetItem(f"{self.spin_cw.value():.2f}"))
+        btn = QPushButton("✕"); btn.setObjectName("rm")
+        btn.setFixedSize(22, 20); btn.clicked.connect(self._remove_cond)
+        self.cond_table.setCellWidget(row, 5, btn)
+
+    def _remove_cond(self):
+        btn = self.sender()
+        for row in range(self.cond_table.rowCount()):
+            if self.cond_table.cellWidget(row, 5) is btn:
+                self.cond_table.removeRow(row); break
+
+    def _get_conditions(self):
+        conds = []
+        for row in range(self.cond_table.rowCount()):
+            try:
+                conds.append((
+                    float(self.cond_table.item(row, 0).text()),
+                    float(self.cond_table.item(row, 1).text()),
+                    self.cond_table.item(row, 2).text(),
+                    self.cond_table.item(row, 3).text(),
+                    float(self.cond_table.item(row, 4).text()),
+                ))
+            except: pass
+        if not conds:
+            conds = [(self.spin_wl_min.value(), self.spin_wl_max.value(),
+                      "T", "max", 1.0)]
+        return conds
+
+    # ── Calculation ────────────────────────────────────────────────────
+
+    def _get_pol(self):
         t = self.combo_pol.currentText()
-        if "s" in t:
-            return "s"
-        if "p" in t:
-            return "p"
+        if "s" in t: return "s"
+        if "p" in t: return "p"
         return "unpolarized"
 
     def _calculate(self):
         try:
-            structure = self._build_structure()
+            st = self._build_structure()
             wl = np.linspace(self.spin_wl_min.value(),
                              self.spin_wl_max.value(),
                              self.spin_pts.value())
-            pol   = self._get_pol()
-            angle = self.spin_angle.value()
-
-            engine = TMMEngine(structure)
-            result = engine.calculate(wl, angle=angle, polarization=pol,
-                                      substrate_thickness_mm=1.0)
-
-            self._last_result    = result
-            self._last_structure = structure
-
-            self.canvas.plot(result,
-                             show_R=self.chk_R.isChecked(),
-                             show_T=self.chk_T.isChecked(),
-                             show_A=self.chk_A.isChecked(),
-                             structure=structure)
-
-            self._summary_widgets["R"].setText(f"{result.R.mean()*100:.2f}%")
-            self._summary_widgets["T"].setText(f"{result.T.mean()*100:.2f}%")
-            self._summary_widgets["A"].setText(f"{result.A.mean()*100:.2f}%")
-
+            pol = self._get_pol(); ang = self.spin_angle.value()
+            result = TMMEngine(st).calculate(wl, angle=ang,
+                                              polarization=pol,
+                                              substrate_thickness_mm=1.0)
+            self._last_result = result; self._last_structure = st
+            self.canvas.plot(result, self.chk_R.isChecked(),
+                             self.chk_T.isChecked(), self.chk_A.isChecked(), st)
+            self._sw["R"].setText(f"{result.R.mean()*100:.2f}%")
+            self._sw["T"].setText(f"{result.T.mean()*100:.2f}%")
+            self._sw["A"].setText(f"{result.A.mean()*100:.2f}%")
             self.lbl_info.setText(
-                f"λ: {wl[0]:.0f}–{wl[-1]:.0f} nm   ·   "
-                f"{len(wl)} pts   ·   pol: {pol}   ·   θ: {angle}°"
-            )
-
-            step = max(1, len(wl) // 50)
-            self.results_table.populate(result, step=step)
-            self.stack_canvas.plot(structure, self.db)
-            # After calculate, switch back to spectrum view
-            self.tabs.setCurrentIndex(0)
+                f"λ {wl[0]:.0f}–{wl[-1]:.0f} nm  ·  {len(wl)} pts  ·  {pol}  ·  θ={ang}°")
+            step = max(1, len(wl)//50)
+            self.res_table.setRowCount(0)
+            for i in range(0, len(wl), step):
+                r = self.res_table.rowCount(); self.res_table.insertRow(r)
+                self.res_table.setItem(r, 0, QTableWidgetItem(f"{wl[i]:.1f}"))
+                self.res_table.setItem(r, 1, QTableWidgetItem(f"{result.R[i]*100:.3f}"))
+                self.res_table.setItem(r, 2, QTableWidgetItem(f"{result.T[i]*100:.3f}"))
+                self.res_table.setItem(r, 3, QTableWidgetItem(f"{result.A[i]*100:.3f}"))
+                self.res_table.item(r, 1).setForeground(QColor("#FF453A"))
+                self.res_table.item(r, 2).setForeground(QColor("#0A84FF"))
+                self.res_table.item(r, 3).setForeground(QColor("#32D74B"))
+            self.stack_canvas.plot(st, self.db)
+            self.btabs.setCurrentIndex(0)
             self.statusBar().showMessage("Calculation complete.")
-
         except Exception as e:
             import traceback
             self.statusBar().showMessage(f"Error: {e}")
             print(traceback.format_exc())
 
     def _replot(self):
-        if self._last_result is None:
-            return
-        self.canvas.plot(self._last_result,
-                         show_R=self.chk_R.isChecked(),
-                         show_T=self.chk_T.isChecked(),
-                         show_A=self.chk_A.isChecked(),
-                         structure=self._last_structure)
+        if self._last_result:
+            self.canvas.plot(self._last_result, self.chk_R.isChecked(),
+                             self.chk_T.isChecked(), self.chk_A.isChecked(),
+                             self._last_structure)
 
-    # ------------------------------------------------------------------
-    # Export
-    # ------------------------------------------------------------------
+    # ── Optimization ───────────────────────────────────────────────────
+
+    def _run_optimization(self):
+        oi = self._get_opt_idx()
+        if not oi:
+            self.statusBar().showMessage("No layers selected for optimization."); return
+        conds  = self._get_conditions()
+        bounds = [(self.spin_d_min.value(), self.spin_d_max.value())] * len(oi)
+        self.btn_opt.setEnabled(False)
+        cs = "  ·  ".join([f"{m} {g} [{w0:.0f}–{w1:.0f}nm]×{wt}"
+                            for w0,w1,m,g,wt in conds])
+        self.statusBar().showMessage(f"Optimizing {len(oi)} layer(s)  ·  {cs}")
+        self._worker = OptimizeWorker(
+            self._build_structure_opt, oi, bounds, conds,
+            self._get_pol(), self.spin_angle.value())
+        self._worker.progress.connect(self.statusBar().showMessage)
+        self._worker.finished.connect(self._on_opt_done)
+        self._worker.start()
+
+    def _on_opt_done(self, thicknesses, obj_val):
+        self.btn_opt.setEnabled(True)
+        for i, row in enumerate(self._get_opt_idx()):
+            self.layer_table.setItem(row, 1, QTableWidgetItem(f"{thicknesses[i]:.1f}"))
+        self.statusBar().showMessage(
+            f"Done  ·  obj={obj_val:.4f}  ·  " +
+            "  ".join([f"L{i+1}={d:.1f}nm" for i,d in enumerate(thicknesses)]))
+        self._calculate()
+
+    # ── Export ─────────────────────────────────────────────────────────
 
     def _export_png(self):
-        if self._last_result is None:
-            self.statusBar().showMessage("No result to export.")
-            return
+        if not self._last_result: return
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export Spectrum", "spectrum.png",
-            "PNG Image (*.png);;PDF (*.pdf)")
-        if path:
-            self.canvas.save(path)
-            self.statusBar().showMessage(f"Saved: {path}")
+            self, "Export", "spectrum.png", "PNG (*.png);;PDF (*.pdf)")
+        if path: self.canvas.save(path)
 
     def _export_csv(self):
-        if self._last_result is None:
-            self.statusBar().showMessage("No result to export.")
-            return
+        if not self._last_result: return
         path, _ = QFileDialog.getSaveFileName(
             self, "Export CSV", "spectrum.csv", "CSV (*.csv)")
         if path:
             r = self._last_result
-            data = np.column_stack([r.wavelengths, r.R, r.T, r.A])
-            np.savetxt(path, data, delimiter=",",
-                       header="wavelength_nm,R,T,A", comments="")
-            self.statusBar().showMessage(f"Saved: {path}")
+            np.savetxt(path, np.column_stack([r.wavelengths, r.R, r.T, r.A]),
+                       delimiter=",", header="wavelength_nm,R,T,A", comments="")
 
-    # ------------------------------------------------------------------
-    # Dialogs
-    # ------------------------------------------------------------------
+    # ── Dialogs ────────────────────────────────────────────────────────
 
     def _show_db(self):
-        lines = []
-        for mats_list in list(self.db._index.values())[:50]:
-            m = mats_list[0]
-            lines.append(f"{m.name:<18} n@550={m.n_ref:.4f}  k@550={m.k_ref:.4f}")
+        lines = [f"{mats[0].name:<18} n@550={mats[0].n_ref:.4f}  k@550={mats[0].k_ref:.4f}"
+                 for mats in list(self.db._index.values())[:50]]
         QMessageBox.information(self, "Material Database", "\n".join(lines))
 
     def _show_about(self):
-        QMessageBox.about(
-            self, "About Stratoptic",
-            "Stratoptic v0.5.0\n\n"
-            "Thin Film Design & Simulation Platform\n"
+        QMessageBox.about(self, "About Stratoptic",
+            "Stratoptic v1.0\n\nThin Film Design & Simulation Platform\n"
             "Byrnes (2021) TMM + RefractiveIndex.info DB\n\n"
             "Author: Necmeddin\n"
-            "Gazi University — Department of Photonics\n\n"
-            "References:\n"
+            "Gazi University Photonics Research Center\n\n"
             "Byrnes, arXiv:1603.02720 (2021)\n"
             "Johnson & Christy, Phys. Rev. B 6 (1972)\n"
-            "Born & Wolf, Principles of Optics (1999)"
-        )
+            "Born & Wolf, Principles of Optics (1999)")
 
-
-# =============================================================================
-# ENTRY POINT
-# =============================================================================
 
 def main():
     app = QApplication(sys.argv)
