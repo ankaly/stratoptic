@@ -353,6 +353,16 @@ class StratopticWindow(QMainWindow):
         add_r.addWidget(btn_add)
         il.addLayout(add_r)
 
+        # Reorder buttons
+        reorder_r = QHBoxLayout(); reorder_r.setSpacing(4)
+        reorder_r.addStretch()
+        btn_up = QPushButton("▲"); btn_up.setObjectName("ghost")
+        btn_up.setFixedSize(30, 24); btn_up.clicked.connect(self._move_layer_up)
+        btn_down = QPushButton("▼"); btn_down.setObjectName("ghost")
+        btn_down.setFixedSize(30, 24); btn_down.clicked.connect(self._move_layer_down)
+        reorder_r.addWidget(btn_up); reorder_r.addWidget(btn_down)
+        il.addLayout(reorder_r)
+
         # Layer table
         self.layer_table = QTableWidget(0, 4)
         self.layer_table.setHorizontalHeaderLabels(["Material", "d (nm)", "Opt", ""])
@@ -541,6 +551,45 @@ class StratopticWindow(QMainWindow):
         self.layer_table.blockSignals(True)
         item.setText(f"{val:.1f}")
         self.layer_table.blockSignals(False)
+        self._refresh_stack()
+
+    def _swap_rows(self, r1, r2):
+        t = self.layer_table
+        t.blockSignals(True)
+        mat1 = t.item(r1, 0).text(); d1 = t.item(r1, 1).text()
+        opt1 = (w := t.cellWidget(r1, 2)) and (c := w.findChild(QCheckBox)) and c.isChecked()
+        mat2 = t.item(r2, 0).text(); d2 = t.item(r2, 1).text()
+        opt2 = (w := t.cellWidget(r2, 2)) and (c := w.findChild(QCheckBox)) and c.isChecked()
+
+        for row, mat, d, opt in [(r1, mat2, d2, opt2), (r2, mat1, d1, opt1)]:
+            mi = QTableWidgetItem(mat)
+            mi.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            t.setItem(row, 0, mi)
+            t.setItem(row, 1, QTableWidgetItem(d))
+            cw = QWidget(); cl = QHBoxLayout(cw)
+            cl.setContentsMargins(0, 0, 0, 0); cl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            chk = QCheckBox(); chk.setChecked(opt); cl.addWidget(chk)
+            t.setCellWidget(row, 2, cw)
+            btn = QPushButton("✕"); btn.setObjectName("rm")
+            btn.setFixedSize(26, 22); btn.clicked.connect(self._remove_layer)
+            t.setCellWidget(row, 3, btn)
+
+        t.blockSignals(False)
+
+    def _move_layer_up(self):
+        row = self.layer_table.currentRow()
+        if row <= 0:
+            return
+        self._swap_rows(row - 1, row)
+        self.layer_table.setCurrentCell(row - 1, 1)
+        self._refresh_stack()
+
+    def _move_layer_down(self):
+        row = self.layer_table.currentRow()
+        if row < 0 or row >= self.layer_table.rowCount() - 1:
+            return
+        self._swap_rows(row, row + 1)
+        self.layer_table.setCurrentCell(row + 1, 1)
         self._refresh_stack()
 
     def _get_opt_idx(self):
