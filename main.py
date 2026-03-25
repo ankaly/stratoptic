@@ -373,6 +373,7 @@ class StratopticWindow(QMainWindow):
         self.layer_table.setMaximumHeight(260)
         # Row height
         self.layer_table.verticalHeader().setDefaultSectionSize(28)
+        self.layer_table.cellChanged.connect(self._on_layer_edited)
         il.addWidget(self.layer_table)
         il.addWidget(hdiv(self._t))
 
@@ -499,7 +500,9 @@ class StratopticWindow(QMainWindow):
             self.statusBar().showMessage("Please select a material first."); return
         d = self.spin_d.value()
         row = self.layer_table.rowCount(); self.layer_table.insertRow(row)
-        self.layer_table.setItem(row, 0, QTableWidgetItem(mat))
+        mat_item = QTableWidgetItem(mat)
+        mat_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+        self.layer_table.setItem(row, 0, mat_item)
         self.layer_table.setItem(row, 1, QTableWidgetItem(f"{d:.1f}"))
         # Opt checkbox — centered
         cw = QWidget(); cl = QHBoxLayout(cw)
@@ -518,6 +521,26 @@ class StratopticWindow(QMainWindow):
         for row in range(self.layer_table.rowCount()):
             if self.layer_table.cellWidget(row, 3) is btn:
                 self.layer_table.removeRow(row); break
+        self._refresh_stack()
+
+    def _on_layer_edited(self, row, col):
+        if col != 1:
+            return
+        item = self.layer_table.item(row, col)
+        if item is None:
+            return
+        try:
+            val = float(item.text())
+            if val <= 0:
+                raise ValueError
+        except ValueError:
+            self.layer_table.blockSignals(True)
+            item.setText(f"{self.spin_d.value():.1f}")
+            self.layer_table.blockSignals(False)
+            return
+        self.layer_table.blockSignals(True)
+        item.setText(f"{val:.1f}")
+        self.layer_table.blockSignals(False)
         self._refresh_stack()
 
     def _get_opt_idx(self):
