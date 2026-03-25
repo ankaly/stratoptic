@@ -417,20 +417,67 @@ class RIIDatabase:
         Load n/k data from a user CSV/TXT file.
         Format: wavelength, n[, k]  — header lines starting with # or non-numeric skipped.
         Wavelength auto-detected: if max < 50 → assumed µm, converted to nm.
+        Supports comma, semicolon, tab, and whitespace separators. BOM-safe.
         """
-        # Try comma then tab delimiter
-        data = None
-        for delim in (",", "\t", None):
+        # Read raw lines — strip BOM and whitespace
+        with open(filepath, "r", encoding="utf-8-sig") as f:
+            raw_lines = f.readlines()
+
+        # Detect delimiter from first data line
+        delim = None
+        for line in raw_lines:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            # Try to parse first token as float — skip header lines
+            parts_semi = line.split(";")
+            parts_comma = line.split(",")
+            parts_tab = line.split("\t")
+            if len(parts_semi) >= 2:
+                try:
+                    float(parts_semi[0].strip()); delim = ";"; break
+                except ValueError:
+                    pass
+            if len(parts_comma) >= 2:
+                try:
+                    float(parts_comma[0].strip()); delim = ","; break
+                except ValueError:
+                    pass
+            if len(parts_tab) >= 2:
+                try:
+                    float(parts_tab[0].strip()); delim = "\t"; break
+                except ValueError:
+                    pass
+            # whitespace
+            parts_ws = line.split()
+            if len(parts_ws) >= 2:
+                try:
+                    float(parts_ws[0]); delim = None; break
+                except ValueError:
+                    pass
+
+        # Parse rows manually to handle BOM, mixed empty lines, partial rows
+        rows = []
+        for line in raw_lines:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split(delim) if delim else line.split()
+            parts = [p.strip() for p in parts if p.strip()]
+            if len(parts) < 2:
+                continue
             try:
-                data = np.genfromtxt(filepath, delimiter=delim,
-                                     comments="#", invalid_raise=False)
-                # Drop rows with NaN and filter to numeric rows
-                data = data[~np.isnan(data).any(axis=1)]
-                if data.ndim == 2 and data.shape[1] >= 2 and len(data) >= 3:
-                    break
-                data = None
-            except Exception:
-                data = None
+                vals = [float(p) for p in parts[:3]]
+                if len(vals) >= 2:
+                    rows.append(vals)
+            except ValueError:
+                continue  # skip header / non-numeric lines
+
+        data = None
+        if len(rows) >= 3:
+            # Pad to 3 columns if k is missing
+            padded = [r if len(r) == 3 else r + [0.0] for r in rows]
+            data = np.array(padded)
 
         if data is None or data.ndim != 2 or data.shape[1] < 2 or len(data) < 3:
             raise ValueError(f"Could not parse '{filepath}': need ≥3 rows with wavelength + n columns")

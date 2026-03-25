@@ -791,7 +791,7 @@ class StratopticWindow(QMainWindow):
             "<b>Required columns:</b><br>"
             "&nbsp;&nbsp;wavelength &nbsp; n &nbsp; [k]<br><br>"
             "<b>Wavelength unit:</b> nm (auto-detected — if max &lt; 50, assumed µm)<br>"
-            "<b>Separator:</b> comma or tab<br>"
+            "<b>Separator:</b> comma, semicolon, tab, or space<br>"
             "<b>Header lines:</b> skip lines starting with <code>#</code> or non-numeric<br>"
             "<b>Minimum:</b> 3 data points<br><br>"
             "<b>Example (CSV):</b><br>"
