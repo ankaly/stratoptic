@@ -412,6 +412,56 @@ class RIIDatabase:
             return []
         return [(m.page, m.yml_path) for m in self._index[key]]
 
+    def load_user_dataset(self, filepath: str, name: str) -> "RIIMaterial":
+        """
+        Load n/k data from a user CSV/TXT file.
+        Format: wavelength, n[, k]  — header lines starting with # or non-numeric skipped.
+        Wavelength auto-detected: if max < 50 → assumed µm, converted to nm.
+        """
+        # Try comma then tab delimiter
+        data = None
+        for delim in (",", "\t", None):
+            try:
+                data = np.genfromtxt(filepath, delimiter=delim,
+                                     comments="#", invalid_raise=False)
+                # Drop rows with NaN and filter to numeric rows
+                data = data[~np.isnan(data).any(axis=1)]
+                if data.ndim == 2 and data.shape[1] >= 2 and len(data) >= 3:
+                    break
+                data = None
+            except Exception:
+                data = None
+
+        if data is None or data.ndim != 2 or data.shape[1] < 2 or len(data) < 3:
+            raise ValueError(f"Could not parse '{filepath}': need ≥3 rows with wavelength + n columns")
+
+        wls_raw = data[:, 0]
+        ns      = data[:, 1]
+        ks      = data[:, 2] if data.shape[1] >= 3 else np.zeros(len(ns))
+
+        # µm → nm auto-detection
+        if wls_raw.max() < 50:
+            wls_nm = wls_raw * 1000.0
+        else:
+            wls_nm = wls_raw
+
+        wls_um = wls_nm / 1000.0
+
+        # Sort by wavelength
+        order  = np.argsort(wls_um)
+        wls_um = wls_um[order]; ns = ns[order]; ks = ks[order]
+
+        kind = "cubic" if len(wls_um) >= 4 else "linear"
+        mat = RIIMaterial(name=name, shelf="user", book=name,
+                          page="custom", yml_path="")
+        mat._interp_n = interp1d(wls_um, ns, kind=kind, fill_value="extrapolate")
+        mat._interp_k = interp1d(wls_um, ks, kind=kind, fill_value="extrapolate")
+        mat._wl_range = (float(wls_nm.min()), float(wls_nm.max()))
+        mat._loaded   = True
+
+        self._index[name.lower()] = [mat]
+        return mat
+
     def __len__(self):
         return sum(len(v) for v in self._index.values())
 

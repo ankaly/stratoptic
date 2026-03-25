@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QSplitter, QLabel, QPushButton, QComboBox, QDoubleSpinBox,
     QSpinBox, QFrame, QSizePolicy, QCheckBox, QScrollArea,
     QTableWidget, QTableWidgetItem, QHeaderView,
-    QTabWidget, QFileDialog, QMessageBox,
+    QTabWidget, QFileDialog, QMessageBox, QInputDialog,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QColor, QActionGroup
@@ -78,6 +78,9 @@ class StratopticWindow(QMainWindow):
             a = QAction(txt, self)
             if sc: a.setShortcut(sc)
             a.triggered.connect(fn); fm.addAction(a)
+        fm.addSeparator()
+        imp = QAction("Import Material Dataset…", self); imp.setShortcut("Ctrl+I")
+        imp.triggered.connect(self._import_dataset); fm.addAction(imp)
         fm.addSeparator()
         q = QAction("Quit", self); q.setShortcut("Ctrl+Q")
         q.triggered.connect(self.close); fm.addAction(q)
@@ -777,6 +780,34 @@ class StratopticWindow(QMainWindow):
             r = self._last_result
             np.savetxt(path, np.column_stack([r.wavelengths, r.R, r.T, r.A]),
                        delimiter=",", header="wavelength_nm,R,T,A", comments="")
+
+    def _import_dataset(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import Material Dataset", "",
+            "CSV/TXT (*.csv *.txt *.dat);;All files (*)")
+        if not path:
+            return
+        name, ok = QInputDialog.getText(self, "Material Name",
+                                        "Enter a name for this material:")
+        if not ok or not name.strip():
+            return
+        name = name.strip()
+        try:
+            mat = self.db.load_user_dataset(path, name)
+        except Exception as e:
+            QMessageBox.warning(self, "Import Failed", str(e)); return
+
+        wl0, wl1 = mat._wl_range
+        try:
+            n_pts = len(mat._interp_n.x)
+        except Exception:
+            n_pts = 0
+
+        for combo in [self.combo_mat, self.combo_inc, self.combo_sub]:
+            combo.addItem(name)
+
+        self.statusBar().showMessage(
+            f"Loaded: {name}  ({n_pts} points, {wl0:.0f}–{wl1:.0f} nm)")
 
     # ── Dialogs ────────────────────────────────────────────────────────
 
