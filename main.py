@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QSpinBox, QFrame, QSizePolicy, QCheckBox, QScrollArea,
     QTableWidget, QTableWidgetItem, QHeaderView,
     QTabWidget, QFileDialog, QMessageBox, QInputDialog,
+    QDialog, QListWidget, QDialogButtonBox,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QColor, QActionGroup
@@ -97,6 +98,8 @@ class StratopticWindow(QMainWindow):
         tom = mb.addMenu("Tools")
         adb = QAction("Material Database…", self)
         adb.triggered.connect(self._show_db); tom.addAction(adb)
+        aud = QAction("Manage User Datasets…", self)
+        aud.triggered.connect(self._manage_datasets); tom.addAction(aud)
 
         hm = mb.addMenu("Help")
         ab = QAction("About Stratoptic", self)
@@ -782,6 +785,31 @@ class StratopticWindow(QMainWindow):
                        delimiter=",", header="wavelength_nm,R,T,A", comments="")
 
     def _import_dataset(self):
+        # Format info dialog
+        fmt_msg = (
+            "<b>Supported formats:</b> CSV, TXT, DAT<br><br>"
+            "<b>Required columns:</b><br>"
+            "&nbsp;&nbsp;wavelength &nbsp; n &nbsp; [k]<br><br>"
+            "<b>Wavelength unit:</b> nm (auto-detected — if max &lt; 50, assumed µm)<br>"
+            "<b>Separator:</b> comma or tab<br>"
+            "<b>Header lines:</b> skip lines starting with <code>#</code> or non-numeric<br>"
+            "<b>Minimum:</b> 3 data points<br><br>"
+            "<b>Example (CSV):</b><br>"
+            "<code>wavelength_nm,n,k<br>"
+            "400,2.35,0.0<br>"
+            "500,2.31,0.0<br>"
+            "600,2.28,0.0</code>"
+        )
+        info = QMessageBox(self)
+        info.setWindowTitle("Import Format")
+        info.setText(fmt_msg)
+        info.setIcon(QMessageBox.Icon.Information)
+        info.setStandardButtons(
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
+        info.button(QMessageBox.StandardButton.Ok).setText("Choose File…")
+        if info.exec() != QMessageBox.StandardButton.Ok:
+            return
+
         path, _ = QFileDialog.getOpenFileName(
             self, "Import Material Dataset", "",
             "CSV/TXT (*.csv *.txt *.dat);;All files (*)")
@@ -806,8 +834,50 @@ class StratopticWindow(QMainWindow):
         for combo in [self.combo_mat, self.combo_inc, self.combo_sub]:
             combo.addItem(name)
 
+        if not hasattr(self, "_user_datasets"):
+            self._user_datasets = []
+        self._user_datasets.append(name)
+
         self.statusBar().showMessage(
             f"Loaded: {name}  ({n_pts} points, {wl0:.0f}–{wl1:.0f} nm)")
+
+    def _manage_datasets(self):
+        datasets = getattr(self, "_user_datasets", [])
+        dlg = QDialog(self)
+        dlg.setWindowTitle("User Datasets")
+        dlg.setMinimumWidth(320)
+        vl = QVBoxLayout(dlg)
+        vl.addWidget(QLabel("Imported materials:"))
+        lst = QListWidget()
+        for name in datasets:
+            lst.addItem(name)
+        vl.addWidget(lst)
+
+        btn_del = QPushButton("Delete selected")
+        btn_del.setObjectName("rm")
+
+        def _delete():
+            row = lst.currentRow()
+            if row < 0:
+                return
+            name = lst.item(row).text()
+            key = name.lower()
+            if key in self.db._index and self.db._index[key][0].shelf == "user":
+                del self.db._index[key]
+            self._user_datasets.remove(name)
+            for combo in [self.combo_mat, self.combo_inc, self.combo_sub]:
+                idx = combo.findText(name)
+                if idx >= 0:
+                    combo.removeItem(idx)
+            lst.takeItem(row)
+            self.statusBar().showMessage(f"Removed: {name}")
+
+        btn_del.clicked.connect(_delete)
+        vl.addWidget(btn_del)
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        bb.rejected.connect(dlg.reject)
+        vl.addWidget(bb)
+        dlg.exec()
 
     # ── Dialogs ────────────────────────────────────────────────────────
 
