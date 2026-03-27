@@ -23,7 +23,7 @@ from rii_db import RIIDatabase
 from engine import Layer, Structure, TMMEngine
 
 from ui.theme import DARK, LIGHT, build_style, is_dark, sec, muted, hdiv, vdiv
-from ui.canvases import SpectrumCanvas, DispersionCanvas, StackCanvas
+from ui.canvases import SpectrumCanvas, DispersionCanvas, StackCanvas, EFieldCanvas
 from optimizer import OptimizeWorker
 
 import matplotlib
@@ -71,6 +71,7 @@ class StratopticWindow(QMainWindow):
         self.canvas.apply_theme(self._t)
         self.stack_canvas.apply_theme(self._t)
         self.disp_canvas.apply_theme(self._t)
+        self.efield_canvas.apply_theme(self._t)
 
     # ── Menu ───────────────────────────────────────────────────────────
 
@@ -536,6 +537,9 @@ class StratopticWindow(QMainWindow):
         self.disp_canvas = DispersionCanvas(self._t)
         self.btabs.addTab(self.disp_canvas, "Dispersion")
 
+        self.efield_canvas = EFieldCanvas(self._t)
+        self.btabs.addTab(self.efield_canvas, "E-Field")
+
         vsplit.addWidget(self.btabs)
         vsplit.setSizes([540, 200])
         vl.addWidget(vsplit)
@@ -813,12 +817,22 @@ class StratopticWindow(QMainWindow):
                 self.res_table.item(r, 2).setForeground(QColor("#0A84FF"))
                 self.res_table.item(r, 3).setForeground(QColor("#32D74B"))
             self.stack_canvas.plot(st, self.db)
+            self._update_efield(st, wl, pol, ang)
             self.btabs.setCurrentIndex(0)
             self.statusBar().showMessage("Calculation complete.")
         except Exception as e:
             import traceback
             self.statusBar().showMessage(f"Error: {e}")
             print(traceback.format_exc())
+
+    def _update_efield(self, st, wl, pol, ang):
+        wl_mid = float(wl[len(wl) // 2])
+        ef_pol = pol if pol != "unpolarized" else "s"
+        try:
+            ef = TMMEngine(st).electric_field(wl_mid, angle=ang, polarization=ef_pol)
+            self.efield_canvas.plot(ef, wl_mid)
+        except Exception:
+            self.efield_canvas._empty()
 
     def _clear_overlay(self):
         self._overlay_results = []

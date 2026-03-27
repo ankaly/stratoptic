@@ -344,3 +344,86 @@ class StackCanvas(FigureCanvas):
         ax.text(0.5, n+0.32, "incident light", ha="center", va="bottom",
                 color=self.t["accent"], fontsize=9, fontweight="600")
         self.fig.tight_layout(pad=0.3); self.draw()
+
+
+# Renk paleti: her katman bölgesi için hafif shading
+_LAYER_COLORS = [
+    "#1A3A5C", "#1A4A2A", "#4A2A1A", "#3A1A4A",
+    "#1A4A4A", "#4A3A1A", "#2A1A3A", "#1A3A3A",
+]
+
+
+class EFieldCanvas(FigureCanvas):
+    def __init__(self, t, parent=None):
+        self.t = t
+        self.fig = Figure(facecolor=t["plot_bg"])
+        super().__init__(self.fig)
+        self.setParent(parent)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._empty()
+
+    def apply_theme(self, t):
+        self.t = t; self.fig.set_facecolor(t["plot_bg"]); self.draw()
+
+    def _empty(self):
+        self.fig.clear(); self.fig.set_facecolor(self.t["plot_bg"])
+        ax = self.fig.add_subplot(111, facecolor=self.t["plot_bg"]); ax.axis("off")
+        ax.text(0.5, 0.5, "Calculate to view E-field distribution",
+                transform=ax.transAxes, ha="center", va="center",
+                color=self.t["t2"], fontsize=11)
+        self.draw()
+
+    def plot(self, ef_data: dict, wavelength_nm: float):
+        """
+        ef_data: dict returned by TMMEngine.electric_field()
+        """
+        pos   = ef_data['positions_nm']
+        esq   = ef_data['E_squared']
+        bounds = ef_data['layer_boundaries']   # positions of film interfaces
+        names  = ef_data['layer_names']        # [incident, film1, ..., substrate]
+
+        self.fig.clear(); self.fig.set_facecolor(self.t["plot_bg"])
+        gs = gridspec.GridSpec(1, 1, figure=self.fig,
+                               left=0.09, right=0.97, top=0.88, bottom=0.12)
+        ax = self.fig.add_subplot(gs[0], facecolor=self.t["plot_ax"])
+
+        ax.tick_params(colors=self.t["t2"], labelsize=9, length=3, width=0.6)
+        ax.set_xlabel("Position (nm)", color=self.t["t2"], fontsize=10, labelpad=5)
+        ax.set_ylabel("|E/E₀|²", color=self.t["t2"], fontsize=10, labelpad=5)
+        ax.grid(True, color=self.t["plot_grid"], lw=0.5, alpha=0.8)
+        ax.grid(True, which="minor", color=self.t["plot_grid"], lw=0.3, alpha=0.4)
+        ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
+        ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
+        for sp in ax.spines.values():
+            sp.set_edgecolor(self.t["plot_grid"]); sp.set_linewidth(0.6)
+
+        # Shading for each region
+        SEMI = 50.0
+        region_edges = [-SEMI] + list(bounds) + [bounds[-1] + SEMI]
+        for i in range(len(region_edges) - 1):
+            x0, x1 = region_edges[i], region_edges[i + 1]
+            color = _LAYER_COLORS[i % len(_LAYER_COLORS)]
+            ax.axvspan(x0, x1, alpha=0.18, color=color, zorder=0)
+            cx = (x0 + x1) / 2
+            ax.text(cx, ax.get_ylim()[1] if ax.get_ylim()[1] > 1 else 1.05,
+                    names[i] if i < len(names) else "",
+                    ha="center", va="bottom", fontsize=7,
+                    color=self.t["t2"], rotation=0,
+                    transform=ax.get_xaxis_transform(),
+                    clip_on=True)
+
+        # Layer boundary lines
+        for b in bounds:
+            ax.axvline(b, color=self.t["t1"], lw=0.8, linestyle="--",
+                       alpha=0.6, zorder=2)
+
+        # E-field curve
+        ax.plot(pos, esq, color="#0A84FF", lw=1.8, zorder=3)
+        ax.fill_between(pos, esq, alpha=0.12, color="#0A84FF")
+
+        ax.set_xlim(pos[0], pos[-1])
+        ax.set_ylim(bottom=0)
+
+        self.fig.suptitle(f"Electric Field |E/E₀|²   ·   λ={wavelength_nm:.1f} nm",
+                          color=self.t["t2"], fontsize=8.5, x=0.5, y=0.97, ha="center")
+        self.draw()
