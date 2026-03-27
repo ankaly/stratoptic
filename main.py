@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
     QTabWidget, QFileDialog, QMessageBox, QInputDialog,
     QDialog, QListWidget, QDialogButtonBox, QSplashScreen,
 )
-from PyQt6.QtCore import Qt, QRect
+from PyQt6.QtCore import Qt, QRect, QTimer, QEventLoop
 from PyQt6.QtGui import QAction, QColor, QActionGroup, QPixmap, QPainter, QFont, QBrush
 
 sys.path.insert(0, 'motor')
@@ -1129,6 +1129,12 @@ def main():
     app.processEvents()
 
     window = StratopticWindow(splash=splash)
+
+    # Splash en az 3 saniye görünsün
+    loop = QEventLoop()
+    QTimer.singleShot(3000, loop.quit)
+    loop.exec()
+
     window.show()
     splash.finish(window)
     sys.exit(app.exec())
