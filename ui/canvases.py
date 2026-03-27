@@ -21,6 +21,9 @@ class SpectrumCanvas(FigureCanvas):
         self._res = self._st = None
         self._sR = self._sT = self._sA = True
         self._overlays = []
+        self._crosshair_v = None
+        self._annot = None
+        self.mpl_connect('motion_notify_event', self._on_hover)
         self._empty()
 
     def apply_theme(self, t):
@@ -53,6 +56,54 @@ class SpectrumCanvas(FigureCanvas):
                 transform=ax.transAxes, ha="center", va="center",
                 color=self.t["t2"], fontsize=13)
         self.draw()
+
+    def _on_hover(self, event):
+        if not self._res or event.inaxes is None:
+            changed = False
+            if self._crosshair_v and self._crosshair_v.get_visible():
+                self._crosshair_v.set_visible(False); changed = True
+            if self._annot and self._annot.get_visible():
+                self._annot.set_visible(False); changed = True
+            if changed:
+                self.draw_idle()
+            return
+        wl = self._res.wavelengths
+        idx = int(np.argmin(np.abs(wl - event.xdata)))
+        x = wl[idx]
+        R = self._res.R[idx] * 100
+        T = self._res.T[idx] * 100
+        A = self._res.A[idx] * 100
+        ax = event.inaxes
+        if self._crosshair_v is None or self._crosshair_v.axes is not ax:
+            if self._crosshair_v:
+                self._crosshair_v.remove()
+            self._crosshair_v = ax.axvline(x, color=self.t["t2"], lw=0.8,
+                                            linestyle="--", alpha=0.5, zorder=7)
+        else:
+            self._crosshair_v.set_xdata([x, x])
+            self._crosshair_v.set_visible(True)
+        text = f"λ={x:.1f} nm\nR={R:.2f}%\nT={T:.2f}%\nA={A:.2f}%"
+        # Position: right of cursor if in left half, else left
+        xfrac = (x - wl[0]) / (wl[-1] - wl[0]) if wl[-1] != wl[0] else 0.5
+        ha = "left" if xfrac < 0.65 else "right"
+        xoff = 10 if ha == "left" else -10
+        if self._annot is None or self._annot.axes is not ax:
+            if self._annot:
+                self._annot.remove()
+            self._annot = ax.annotate(
+                text, xy=(x, event.ydata),
+                xytext=(xoff, 0), textcoords="offset points",
+                fontsize=8, color=self.t["t1"], ha=ha, va="center",
+                bbox=dict(boxstyle="round,pad=0.4", facecolor=self.t["plot_ax"],
+                          edgecolor=self.t["plot_grid"], alpha=0.92, linewidth=0.8),
+                zorder=8)
+        else:
+            self._annot.set_text(text)
+            self._annot.xy = (x, event.ydata)
+            self._annot.xyann = (xoff, 0)
+            self._annot.set_ha(ha)
+            self._annot.set_visible(True)
+        self.draw_idle()
 
     def _mark_minmax(self, ax, wl, vals, color):
         """Mark max and min points on a curve if values are in range 1–99%."""
