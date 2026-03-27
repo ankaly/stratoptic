@@ -52,7 +52,7 @@ def build_style(t):
     # NavigationToolbar background fix — always matches plot area
     return f"""
 QWidget {{
-    font-family: -apple-system, 'SF Pro Text', 'Segoe UI', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+    font-family: -apple-system, 'SF Pro Text', 'Segoe UI', sans-serif;
     font-size: 12px;
     color: {t['t0']};
     background: transparent;
