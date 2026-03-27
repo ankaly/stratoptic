@@ -174,6 +174,91 @@ class TMMEngine:
 
         return float(np.clip(R, 0, 1)), float(np.clip(T, 0, 1))
 
+    def electric_field(self, wavelength_nm: float, angle: float = 0.0,
+                       polarization: str = "s",
+                       points_per_layer: int = 100) -> dict:
+        """
+        Single-wavelength |E|² distribution across the layer stack.
+
+        Uses coherent TMM only (incident + film stack + substrate, all coherent).
+        Incident and exit media are shown over a 50 nm window.
+
+        Returns
+        -------
+        dict with keys:
+            positions_nm     : np.ndarray  — x axis (nm, 0 = first film surface)
+            E_squared        : np.ndarray  — |E/E₀|²
+            layer_boundaries : list[float] — interface positions (nm)
+            layer_names      : list[str]   — name for each region
+        """
+        st = self.st
+        wl = float(wavelength_nm)
+        pol = polarization if polarization != "unpolarized" else "s"
+        th0 = np.deg2rad(angle)
+
+        SEMI_INF_NM = 50.0   # nm shown for incident and exit media
+
+        # Build coherent n_list / d_list (incident + films + substrate)
+        n_list = (
+            [st.incident.N_at(wl)] +
+            [l.material.N_at(wl) for l in st.layers] +
+            [st.substrate.N_at(wl)]
+        )
+        d_list = (
+            [np.inf] +
+            [l.thickness for l in st.layers] +
+            [np.inf]
+        )
+
+        coh_data = tmm.coh_tmm(pol, n_list, d_list, th0, wl)
+
+        # Layer names for regions
+        layer_names = (
+            [st.incident.name] +
+            [f"{l.material.name} ({l.thickness:.0f} nm)" for l in st.layers] +
+            [st.substrate.name]
+        )
+
+        # Sample positions and compute |E|²
+        positions = []
+        E_sq = []
+
+        # Layer 0: incident medium, show last SEMI_INF_NM nm before interface
+        pts0 = np.linspace(-SEMI_INF_NM, 0.0, points_per_layer, endpoint=False)
+        for d in pts0:
+            pr = tmm.position_resolved(0, d, coh_data)
+            positions.append(d)
+            E_sq.append(abs(pr['Ex'])**2 + abs(pr['Ey'])**2 + abs(pr['Ez'])**2)
+
+        # Film layers (1 … N-1, excluding exit)
+        offset = 0.0
+        boundaries = [0.0]
+        for i, layer in enumerate(st.layers):
+            thick = layer.thickness
+            pts = np.linspace(0.0, thick, points_per_layer, endpoint=False)
+            layer_idx = i + 1
+            for d in pts:
+                pr = tmm.position_resolved(layer_idx, d, coh_data)
+                positions.append(offset + d)
+                E_sq.append(abs(pr['Ex'])**2 + abs(pr['Ey'])**2 + abs(pr['Ez'])**2)
+            offset += thick
+            boundaries.append(offset)
+
+        # Last layer: substrate, show first SEMI_INF_NM nm after last interface
+        last_idx = len(n_list) - 1
+        pts_sub = np.linspace(0.0, SEMI_INF_NM, points_per_layer, endpoint=True)
+        for d in pts_sub:
+            pr = tmm.position_resolved(last_idx, d, coh_data)
+            positions.append(offset + d)
+            E_sq.append(abs(pr['Ex'])**2 + abs(pr['Ey'])**2 + abs(pr['Ez'])**2)
+
+        return {
+            'positions_nm'     : np.array(positions),
+            'E_squared'        : np.array(E_sq),
+            'layer_boundaries' : boundaries,
+            'layer_names'      : layer_names,
+        }
+
     def _unpolarized(self, wavelengths, angle, sub_thick_mm):
         res_s = self.calculate(wavelengths, angle, 's', sub_thick_mm)
         res_p = self.calculate(wavelengths, angle, 'p', sub_thick_mm)
