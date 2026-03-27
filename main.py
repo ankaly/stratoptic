@@ -13,10 +13,10 @@ from PyQt6.QtWidgets import (
     QSpinBox, QFrame, QSizePolicy, QCheckBox, QScrollArea,
     QTableWidget, QTableWidgetItem, QHeaderView,
     QTabWidget, QFileDialog, QMessageBox, QInputDialog,
-    QDialog, QListWidget, QDialogButtonBox,
+    QDialog, QListWidget, QDialogButtonBox, QSplashScreen,
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction, QColor, QActionGroup
+from PyQt6.QtCore import Qt, QRect
+from PyQt6.QtGui import QAction, QColor, QActionGroup, QPixmap, QPainter, QFont, QBrush
 
 sys.path.insert(0, 'motor')
 from rii_db import RIIDatabase
@@ -42,8 +42,12 @@ from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as Navigation
 
 class StratopticWindow(QMainWindow):
 
-    def __init__(self):
+    def __init__(self, splash=None):
         super().__init__()
+        if splash:
+            splash.showMessage("Indexing materials…",
+                               Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter,
+                               QColor("#AAAAAA"))
         self.db = RIIDatabase("data/rii_db")
         self._last_result = self._last_structure = None
         self._overlay_results = []
@@ -1071,11 +1075,62 @@ class StratopticWindow(QMainWindow):
             "Born & Wolf, Principles of Optics (1999)")
 
 
+def _make_splash_pixmap():
+    from ui.theme import DARK
+    W, H = 500, 300
+    bg   = QColor(DARK["win"])
+    acc  = QColor(DARK["accent"])
+    px   = QPixmap(W, H)
+    px.fill(bg)
+    p = QPainter(px)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+    # arka plan hafif gradient çizgisi
+    p.setPen(QColor(DARK["line1"]))
+    p.drawLine(0, H - 56, W, H - 56)
+
+    # STRATOPTIC
+    f = QFont("SF Pro Display", 42, QFont.Weight.Bold)
+    p.setFont(f)
+    p.setPen(QColor("#FFFFFF"))
+    p.drawText(QRect(0, 60, W, 70), Qt.AlignmentFlag.AlignHCenter, "STRATOPTIC")
+
+    # alt başlık
+    f.setPointSize(13); f.setWeight(QFont.Weight.Normal)
+    p.setFont(f)
+    p.setPen(acc)
+    p.drawText(QRect(0, 138, W, 30), Qt.AlignmentFlag.AlignHCenter,
+               "Thin Film Simulation Platform")
+
+    # küçük yazı
+    f.setPointSize(10)
+    p.setFont(f)
+    p.setPen(QColor(DARK["t2"]))
+    p.drawText(QRect(0, 172, W, 24), Qt.AlignmentFlag.AlignHCenter,
+               "Gazi University  ·  Photonics")
+
+    # status
+    p.setPen(QColor(DARK["t2"]))
+    f.setPointSize(9)
+    p.setFont(f)
+    p.drawText(QRect(0, H - 44, W, 24), Qt.AlignmentFlag.AlignHCenter,
+               "Loading database…")
+
+    p.end()
+    return px
+
+
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("Stratoptic")
-    window = StratopticWindow()
+
+    splash = QSplashScreen(_make_splash_pixmap())
+    splash.show()
+    app.processEvents()
+
+    window = StratopticWindow(splash=splash)
     window.show()
+    splash.finish(window)
     sys.exit(app.exec())
 
 
