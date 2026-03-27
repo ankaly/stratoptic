@@ -135,6 +135,7 @@ class SpectrumCanvas(FigureCanvas):
         return f"TMM  {pol}  θ={result.angle}°"
 
     def plot(self, result, sR=True, sT=True, sA=True, structure=None, overlays=None):
+        self._crosshair_v = None; self._annot = None
         self._res = result; self._st = structure
         self._sR = sR; self._sT = sT; self._sA = sA
         self._overlays = overlays or []
