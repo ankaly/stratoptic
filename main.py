@@ -413,6 +413,11 @@ class StratopticWindow(QMainWindow):
         page_r.addWidget(self.combo_page, 1)
         il.addLayout(page_r)
 
+        self.lbl_dataset_info = QLabel("")
+        self.lbl_dataset_info.setObjectName("muted")
+        self.lbl_dataset_info.setWordWrap(True)
+        il.addWidget(self.lbl_dataset_info)
+
         # Reorder buttons
         reorder_r = QHBoxLayout(); reorder_r.setSpacing(4)
         reorder_r.addStretch()
@@ -749,13 +754,33 @@ class StratopticWindow(QMainWindow):
         self._update_dispersion(self.combo_mat.currentText())
 
     def _update_dispersion(self, mat_name):
-        if mat_name.startswith("—"): return
+        if mat_name.startswith("—"):
+            self.lbl_dataset_info.setText("")
+            return
         try:
             page = self.combo_page.currentText() if self.combo_page.isEnabled() else None
             mat = self.db.get(mat_name, page=page)
             self.disp_canvas.plot(mat, self.db)
             self.btabs.setCurrentWidget(self.disp_canvas)
-        except: pass
+            self._refresh_dataset_info(mat)
+        except:
+            self.lbl_dataset_info.setText("")
+
+    def _refresh_dataset_info(self, mat):
+        try:
+            wl0, wl1 = mat.wl_range_nm
+            wl_str = f"λ: {wl0:.0f}–{wl1:.0f} nm"
+            mat._load()
+            if mat._formula is not None:
+                data_str = "formula"
+            elif mat._interp_k is not None:
+                data_str = "tabulated nk"
+            else:
+                data_str = "tabulated n"
+            page = mat.page or ""
+            self.lbl_dataset_info.setText(f"{page}  |  {wl_str}  |  {data_str}")
+        except:
+            self.lbl_dataset_info.setText("")
 
     # ── Conditions ────────────────────────────────────────────────────
 
