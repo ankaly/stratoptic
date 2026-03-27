@@ -344,6 +344,7 @@ class StratopticWindow(QMainWindow):
                 mats_list.append(name)
         for m in mats_list: self.combo_mat.addItem(m)
         self.combo_mat.currentTextChanged.connect(self._update_dispersion)
+        self.combo_mat.currentTextChanged.connect(self._update_page_list)
 
         self.spin_d = QDoubleSpinBox()
         self.spin_d.setRange(0.1, 50000); self.spin_d.setValue(100.0)
@@ -358,6 +359,15 @@ class StratopticWindow(QMainWindow):
         add_r.addWidget(self.spin_d)
         add_r.addWidget(btn_add)
         il.addLayout(add_r)
+
+        # Dataset (page) selector
+        page_r = QHBoxLayout(); page_r.setSpacing(6)
+        page_r.addWidget(muted("Dataset:"))
+        self.combo_page = QComboBox()
+        self.combo_page.setEnabled(False)
+        self.combo_page.currentTextChanged.connect(self._on_page_changed)
+        page_r.addWidget(self.combo_page, 1)
+        il.addLayout(page_r)
 
         # Reorder buttons
         reorder_r = QHBoxLayout(); reorder_r.setSpacing(4)
@@ -518,10 +528,19 @@ class StratopticWindow(QMainWindow):
         mat = self.combo_mat.currentText()
         if mat.startswith("—"):
             self.statusBar().showMessage("Please select a material first."); return
+        page = self.combo_page.currentText() if self.combo_page.isEnabled() else None
+        # Verify material resolves before adding
+        try:
+            self.db.get(mat, page=page)
+        except Exception as e:
+            self.statusBar().showMessage(f"Material error: {e}"); return
         d = self.spin_d.value()
         row = self.layer_table.rowCount(); self.layer_table.insertRow(row)
         mat_item = QTableWidgetItem(mat)
         mat_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+        if page:
+            mat_item.setData(Qt.ItemDataRole.UserRole, page)
+            mat_item.setToolTip(f"Dataset: {page}")
         self.layer_table.setItem(row, 0, mat_item)
         self.layer_table.setItem(row, 1, QTableWidgetItem(f"{d:.1f}"))
         # Opt checkbox — centered
@@ -567,13 +586,18 @@ class StratopticWindow(QMainWindow):
         t = self.layer_table
         t.blockSignals(True)
         mat1 = t.item(r1, 0).text(); d1 = t.item(r1, 1).text()
+        page1 = t.item(r1, 0).data(Qt.ItemDataRole.UserRole)
         opt1 = (w := t.cellWidget(r1, 2)) and (c := w.findChild(QCheckBox)) and c.isChecked()
         mat2 = t.item(r2, 0).text(); d2 = t.item(r2, 1).text()
+        page2 = t.item(r2, 0).data(Qt.ItemDataRole.UserRole)
         opt2 = (w := t.cellWidget(r2, 2)) and (c := w.findChild(QCheckBox)) and c.isChecked()
 
-        for row, mat, d, opt in [(r1, mat2, d2, opt2), (r2, mat1, d1, opt1)]:
+        for row, mat, d, opt, page in [(r1, mat2, d2, opt2, page2), (r2, mat1, d1, opt1, page1)]:
             mi = QTableWidgetItem(mat)
             mi.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            if page:
+                mi.setData(Qt.ItemDataRole.UserRole, page)
+                mi.setToolTip(f"Dataset: {page}")
             t.setItem(row, 0, mi)
             t.setItem(row, 1, QTableWidgetItem(d))
             cw = QWidget(); cl = QHBoxLayout(cw)
@@ -614,7 +638,9 @@ class StratopticWindow(QMainWindow):
             raise ValueError("Please select incident medium and substrate.")
         layers = []
         for r in range(self.layer_table.rowCount()):
-            mat = self.db.get(self.layer_table.item(r, 0).text())
+            item = self.layer_table.item(r, 0)
+            page = item.data(Qt.ItemDataRole.UserRole)
+            mat = self.db.get(item.text(), page=page)
             d   = float(self.layer_table.item(r, 1).text())
             layers.append(Layer(mat, d))
         return Structure(layers=layers,
@@ -629,7 +655,9 @@ class StratopticWindow(QMainWindow):
         if sub.startswith("—"): sub = "Glass_BK7"
         layers = []; it = iter(thicknesses)
         for r in range(self.layer_table.rowCount()):
-            mat = self.db.get(self.layer_table.item(r, 0).text())
+            item = self.layer_table.item(r, 0)
+            page = item.data(Qt.ItemDataRole.UserRole)
+            mat = self.db.get(item.text(), page=page)
             d   = next(it) if r in opt_idx else float(self.layer_table.item(r, 1).text())
             layers.append(Layer(mat, d))
         return Structure(layers=layers,
@@ -641,10 +669,43 @@ class StratopticWindow(QMainWindow):
         try: self.stack_canvas.plot(self._build_structure(), self.db)
         except: self.stack_canvas._empty()
 
+    def _update_page_list(self, mat_name):
+        self.combo_page.blockSignals(True)
+        self.combo_page.clear()
+        if mat_name.startswith("—"):
+            self.combo_page.setEnabled(False)
+            self.combo_page.blockSignals(False)
+            return
+        pages = self.db.list_pages(mat_name)
+        if len(pages) <= 1:
+            self.combo_page.setEnabled(False)
+            self.combo_page.blockSignals(False)
+            return
+        self.combo_page.setEnabled(True)
+        preferred_idx = 0
+        for i, (page_name, yml_path) in enumerate(pages):
+            self.combo_page.addItem(page_name)
+            # Tooltip: wavelength range
+            try:
+                mat = self.db.get(mat_name, page=page_name)
+                wl0, wl1 = mat.wl_range_nm
+                self.combo_page.setItemData(i, f"λ: {wl0:.0f}–{wl1:.0f} nm",
+                                            Qt.ItemDataRole.ToolTipRole)
+            except Exception:
+                pass
+            if "johnson" in page_name.lower():
+                preferred_idx = i
+        self.combo_page.setCurrentIndex(preferred_idx)
+        self.combo_page.blockSignals(False)
+
+    def _on_page_changed(self, _):
+        self._update_dispersion(self.combo_mat.currentText())
+
     def _update_dispersion(self, mat_name):
         if mat_name.startswith("—"): return
         try:
-            mat = self.db.get(mat_name)
+            page = self.combo_page.currentText() if self.combo_page.isEnabled() else None
+            mat = self.db.get(mat_name, page=page)
             self.disp_canvas.plot(mat, self.db)
             self.btabs.setCurrentWidget(self.disp_canvas)
         except: pass
