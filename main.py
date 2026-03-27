@@ -25,6 +25,7 @@ from engine import Layer, Structure, TMMEngine
 from ui.theme import DARK, LIGHT, build_style, is_dark, sec, muted, hdiv, vdiv
 from ui.canvases import SpectrumCanvas, DispersionCanvas, StackCanvas, EFieldCanvas
 from optimizer import OptimizeWorker
+from color import coating_color
 
 import matplotlib
 matplotlib.use("QtAgg")
@@ -310,6 +311,18 @@ class StratopticWindow(QMainWindow):
                 sep.setStyleSheet(
                     f"background:{self._t['line0']};max-width:1px;border:none;")
                 hl.addSpacing(18); hl.addWidget(sep); hl.addSpacing(18)
+        # Color swatches (reflection + transmission)
+        hl.addSpacing(18)
+        for attr, label in [("swatch_r", "R"), ("swatch_t", "T")]:
+            sl = QHBoxLayout(); sl.setSpacing(5)
+            swatch = QLabel()
+            swatch.setFixedSize(16, 16)
+            swatch.setStyleSheet("background:#333;border-radius:3px;border:1px solid #555;")
+            lbl_s = QLabel(label); lbl_s.setObjectName("statkey")
+            sl.addWidget(swatch); sl.addWidget(lbl_s)
+            setattr(self, attr, swatch)
+            hl.addLayout(sl)
+            hl.addSpacing(12)
         hl.addStretch()
         self.lbl_info = QLabel(""); self.lbl_info.setObjectName("statkey")
         self.lbl_info.setAlignment(
@@ -803,6 +816,7 @@ class StratopticWindow(QMainWindow):
             self._sw["R"].setText(f"{result.R.mean()*100:.2f}%")
             self._sw["T"].setText(f"{result.T.mean()*100:.2f}%")
             self._sw["A"].setText(f"{result.A.mean()*100:.2f}%")
+            self._update_swatches(result)
             self.lbl_info.setText(
                 f"λ {wl[0]:.0f}–{wl[-1]:.0f} nm  ·  {len(wl)} pts  ·  {pol}  ·  θ={ang}°")
             step = max(1, len(wl)//50)
@@ -824,6 +838,24 @@ class StratopticWindow(QMainWindow):
             import traceback
             self.statusBar().showMessage(f"Error: {e}")
             print(traceback.format_exc())
+
+    def _update_swatches(self, result):
+        for mode, widget in [('reflection', self.swatch_r),
+                              ('transmission', self.swatch_t)]:
+            try:
+                c = coating_color(result, mode=mode)
+                hex_c = c['hex']
+                x, y  = c['xy']
+                R, G, B = c['sRGB']
+                widget.setStyleSheet(
+                    f"background:{hex_c};border-radius:3px;border:1px solid #555;")
+                widget.setToolTip(
+                    f"{'Reflection' if mode=='reflection' else 'Transmission'} color\n"
+                    f"xy = ({x:.4f}, {y:.4f})\n"
+                    f"sRGB = ({R}, {G}, {B})\n"
+                    f"{hex_c}")
+            except Exception:
+                pass
 
     def _update_efield(self, st, wl, pol, ang):
         wl_mid = float(wl[len(wl) // 2])
