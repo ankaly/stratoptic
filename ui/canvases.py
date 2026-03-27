@@ -298,17 +298,39 @@ class StackCanvas(FigureCanvas):
     def plot(self, structure, db):
         self._st = structure; self._db = db
         self.fig.clear(); self.fig.set_facecolor(self.t["plot_bg"])
-        layers = (
-            [("incident", structure.incident, None)] +
-            [(f"L{i+1}", l.material, l.thickness)
-             for i, l in enumerate(structure.layers)] +
-            [("substrate", structure.substrate, None)])
-        n = len(layers)
-        ax = self.fig.add_subplot(111, facecolor=self.t["plot_bg"])
-        ax.set_xlim(0, 1); ax.set_ylim(-0.1, n+0.4); ax.axis("off")
         is_dark_theme = self.t is DARK
-        for i, (role, mat, thick) in enumerate(reversed(layers)):
-            is_film = role not in ("incident", "substrate")
+
+        # --- orantılı yükseklik hesabı ---
+        FIXED_H   = 0.6   # incident / substrate sabit yüksekliği
+        MIN_H     = 0.3   # film katmanı minimum yüksekliği
+        TOTAL_FILM_H = 4.0  # film katmanlarına ayrılan toplam yükseklik havuzu
+
+        film_thicknesses = [l.thickness for l in structure.layers]
+        total_d = sum(film_thicknesses) if film_thicknesses else 1.0
+
+        def film_height(thick):
+            ratio = thick / total_d
+            raw = ratio * TOTAL_FILM_H
+            # çok ince katman (<5% toplam) minimum yükseklikte göster
+            return max(MIN_H, raw)
+
+        # her katman için (role, mat, thick, height) listesi — çizim sırası: alt→üst
+        records = []
+        records.append(("substrate", structure.substrate, None, FIXED_H))
+        for l in structure.layers:
+            records.append((l.material.name, l.material, l.thickness, film_height(l.thickness)))
+        records.append(("incident", structure.incident, None, FIXED_H))
+
+        total_h = sum(r[3] for r in records)
+        ax = self.fig.add_subplot(111, facecolor=self.t["plot_bg"])
+        ax.set_xlim(0, 1)
+        ax.set_ylim(-0.05, total_h + 0.55)
+        ax.axis("off")
+
+        GAP = 0.04
+        y = 0.0
+        for role, mat, thick, h in records:
+            is_film = thick is not None
             try:
                 k = mat.N_at(550).imag
                 if not is_film:
@@ -322,8 +344,8 @@ class StackCanvas(FigureCanvas):
             alpha = 0.95 if is_film else 0.5
             edge  = self.t["accent"] if is_film else self.t["line1"]
             lw    = 1.0 if is_film else 0.5
-            rect  = mpatches.FancyBboxPatch(
-                (0.03, i+0.06), 0.94, 0.85,
+            rect = mpatches.FancyBboxPatch(
+                (0.03, y + GAP), 0.94, h - 2*GAP,
                 boxstyle="round,pad=0.012",
                 facecolor=color, edgecolor=edge,
                 linewidth=lw, alpha=alpha, zorder=2)
@@ -333,15 +355,19 @@ class StackCanvas(FigureCanvas):
             label = (f"{mat.name}   n={nv:.3f}   d={thick:.0f} nm"
                      if thick is not None
                      else f"{mat.name}   n={nv:.3f}   ({'incident' if role=='incident' else 'substrate'})")
-            ax.text(0.5, i+0.47, label, ha="center", va="center",
+            ax.text(0.5, y + h/2, label, ha="center", va="center",
                     color=self.t["t0"] if is_film else self.t["t1"],
                     fontsize=9,
                     fontweight="600" if is_film else "400",
                     zorder=3)
-        ax.annotate("", xy=(0.5, n-0.2), xytext=(0.5, n+0.3),
+            y += h
+
+        # ışık oku — incident katmanın üstüne
+        arrow_base = total_h + 0.05
+        ax.annotate("", xy=(0.5, total_h - FIXED_H/2), xytext=(0.5, arrow_base + 0.25),
                     arrowprops=dict(arrowstyle="-|>",
                                    color=self.t["accent"], lw=1.8), zorder=4)
-        ax.text(0.5, n+0.32, "incident light", ha="center", va="bottom",
+        ax.text(0.5, arrow_base + 0.27, "incident light", ha="center", va="bottom",
                 color=self.t["accent"], fontsize=9, fontweight="600")
         self.fig.tight_layout(pad=0.3); self.draw()
 
