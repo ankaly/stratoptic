@@ -45,6 +45,11 @@ class StratopticWindow(QMainWindow):
         super().__init__()
         self.db = RIIDatabase("data/rii_db")
         self._last_result = self._last_structure = None
+        self._overlay_results = []
+        self._overlay_palette = [
+            "#FF453A","#0A84FF","#32D74B","#FFD60A",
+            "#BF5AF2","#FF9F0A","#AC8E68","#30D5C8",
+        ]
         self._t = DARK if is_dark() else LIGHT
         self._worker = None
 
@@ -256,6 +261,20 @@ class StratopticWindow(QMainWindow):
         for chk in [self.chk_R, self.chk_T, self.chk_A]:
             chk.stateChanged.connect(self._replot)
             show_r.addWidget(chk)
+        show_r.addSpacing(12)
+        self.chk_overlay = QCheckBox("Overlay")
+        self.chk_overlay.setStyleSheet(
+            "QCheckBox{color:#FFD60A;font-weight:700;spacing:5px;}"
+            "QCheckBox::indicator{background:#FFD60A25;border:1.5px solid #FFD60A88;border-radius:4px;width:14px;height:14px;}"
+            "QCheckBox::indicator:hover{border-color:#FFD60A;}"
+            "QCheckBox::indicator:checked{background:#FFD60A;border-color:#FFD60A;}"
+        )
+        show_r.addWidget(self.chk_overlay)
+        self.btn_clear_overlay = QPushButton("Clear")
+        self.btn_clear_overlay.setObjectName("ghost")
+        self.btn_clear_overlay.setFixedWidth(48)
+        self.btn_clear_overlay.clicked.connect(self._clear_overlay)
+        show_r.addWidget(self.btn_clear_overlay)
         right_l.addLayout(show_r)
 
         self.btn_calc = QPushButton("Calculate")
@@ -767,9 +786,16 @@ class StratopticWindow(QMainWindow):
             result = TMMEngine(st).calculate(wl, angle=ang,
                                               polarization=pol,
                                               substrate_thickness_mm=1.0)
+            if self.chk_overlay.isChecked() and self._last_result is not None:
+                n = len(self._overlay_results)
+                color = self._overlay_palette[n % len(self._overlay_palette)]
+                self._overlay_results.append((self._last_result, self._last_structure, color))
+                if len(self._overlay_results) > len(self._overlay_palette):
+                    self._overlay_results.pop(0)
             self._last_result = result; self._last_structure = st
             self.canvas.plot(result, self.chk_R.isChecked(),
-                             self.chk_T.isChecked(), self.chk_A.isChecked(), st)
+                             self.chk_T.isChecked(), self.chk_A.isChecked(), st,
+                             overlays=self._overlay_results)
             self._sw["R"].setText(f"{result.R.mean()*100:.2f}%")
             self._sw["T"].setText(f"{result.T.mean()*100:.2f}%")
             self._sw["A"].setText(f"{result.A.mean()*100:.2f}%")
@@ -794,11 +820,16 @@ class StratopticWindow(QMainWindow):
             self.statusBar().showMessage(f"Error: {e}")
             print(traceback.format_exc())
 
+    def _clear_overlay(self):
+        self._overlay_results = []
+        self._replot()
+
     def _replot(self):
         if self._last_result:
             self.canvas.plot(self._last_result, self.chk_R.isChecked(),
                              self.chk_T.isChecked(), self.chk_A.isChecked(),
-                             self._last_structure)
+                             self._last_structure,
+                             overlays=self._overlay_results)
 
     # ── Optimization ───────────────────────────────────────────────────
 

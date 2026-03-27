@@ -20,12 +20,14 @@ class SpectrumCanvas(FigureCanvas):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._res = self._st = None
         self._sR = self._sT = self._sA = True
+        self._overlays = []
         self._empty()
 
     def apply_theme(self, t):
         self.t = t; self.fig.set_facecolor(t["plot_bg"])
         if self._res:
-            self.plot(self._res, self._sR, self._sT, self._sA, self._st)
+            self.plot(self._res, self._sR, self._sT, self._sA, self._st,
+                      overlays=self._overlays)
         else:
             self._empty()
 
@@ -52,14 +54,41 @@ class SpectrumCanvas(FigureCanvas):
                 color=self.t["t2"], fontsize=13)
         self.draw()
 
-    def plot(self, result, sR=True, sT=True, sA=True, structure=None):
+    def _structure_label(self, structure, result):
+        pol = result.polarization.upper()
+        if structure:
+            title = " / ".join(
+                [structure.incident.name] +
+                [f"{l.material.name}({l.thickness:.0f})" for l in structure.layers] +
+                [structure.substrate.name])
+            return title + f"  θ={result.angle}°"
+        return f"TMM  {pol}  θ={result.angle}°"
+
+    def plot(self, result, sR=True, sT=True, sA=True, structure=None, overlays=None):
         self._res = result; self._st = structure
         self._sR = sR; self._sT = sT; self._sA = sA
+        self._overlays = overlays or []
         self.fig.clear(); self.fig.set_facecolor(self.t["plot_bg"])
         gs = gridspec.GridSpec(1, 1, figure=self.fig,
                                left=0.07, right=0.98, top=0.92, bottom=0.10)
         ax = self.fig.add_subplot(gs[0], facecolor=self.t["plot_ax"])
         self._style(ax)
+
+        # Draw overlays first (behind main result)
+        for ov_result, ov_structure, ov_color in self._overlays:
+            ov_wl = ov_result.wavelengths
+            lbl = self._structure_label(ov_structure, ov_result)
+            if sR:
+                ax.plot(ov_wl, ov_result.R*100, color=ov_color, lw=1.2,
+                        alpha=0.4, label=f"R  {lbl}", zorder=2)
+            if sT:
+                ax.plot(ov_wl, ov_result.T*100, color=ov_color, lw=1.2,
+                        alpha=0.4, linestyle="--", label=f"T  {lbl}", zorder=2)
+            if sA:
+                ax.plot(ov_wl, ov_result.A*100, color=ov_color, lw=1.2,
+                        alpha=0.4, linestyle=":", label=f"A  {lbl}", zorder=2)
+
+        # Draw main result on top
         wl = result.wavelengths
         if sR:
             ax.plot(wl, result.R*100, color=self.CR, lw=2.0,
@@ -73,7 +102,8 @@ class SpectrumCanvas(FigureCanvas):
             ax.plot(wl, result.A*100, color=self.CA, lw=2.0,
                     label="Absorbance (A)", zorder=3)
             ax.fill_between(wl, result.A*100, alpha=0.07, color=self.CA)
-        ax.legend(loc="upper right", fontsize=9,
+
+        ax.legend(loc="upper right", fontsize=8,
                   facecolor=self.t["plot_ax"], labelcolor=self.t["t1"],
                   edgecolor=self.t["plot_grid"], framealpha=0.95,
                   handlelength=1.5, handletextpad=0.5)
