@@ -73,6 +73,11 @@ class StratopticWindow(QMainWindow):
         self.stack_canvas.apply_theme(self._t)
         self.disp_canvas.apply_theme(self._t)
         self.efield_canvas.apply_theme(self._t)
+        if hasattr(self, "btn_theme_toggle"):
+            self.btn_theme_toggle.setText("☀" if self._t is DARK else "🌙")
+
+    def _toggle_theme(self):
+        self._set_theme("light" if self._t is DARK else "dark")
 
     # ── Menu ───────────────────────────────────────────────────────────
 
@@ -283,6 +288,12 @@ class StratopticWindow(QMainWindow):
         self.btn_calc.setObjectName("calc")
         self.btn_calc.clicked.connect(self._calculate)
         right_l.addWidget(self.btn_calc)
+
+        self.btn_theme_toggle = QPushButton("☀" if self._t is DARK else "🌙")
+        self.btn_theme_toggle.setObjectName("ghost")
+        self.btn_theme_toggle.setFixedSize(30, 30)
+        self.btn_theme_toggle.clicked.connect(self._toggle_theme)
+        right_l.addWidget(self.btn_theme_toggle)
         right_l.addStretch()
         hl.addWidget(right_w)
 
