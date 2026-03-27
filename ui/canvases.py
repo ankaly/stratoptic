@@ -54,6 +54,25 @@ class SpectrumCanvas(FigureCanvas):
                 color=self.t["t2"], fontsize=13)
         self.draw()
 
+    def _mark_minmax(self, ax, wl, vals, color):
+        """Mark max and min points on a curve if values are in range 1–99%."""
+        bbox = dict(boxstyle="round,pad=0.2", facecolor=self.t["plot_ax"],
+                    edgecolor=color, alpha=0.75, linewidth=0.8)
+        for idx, is_max in [(np.argmax(vals), True), (np.argmin(vals), False)]:
+            v = vals[idx]
+            if not (1.0 < v < 99.0):
+                continue
+            ax.plot(wl[idx], v, 'o', color=color, markersize=6,
+                    markeredgewidth=1.2, markeredgecolor=self.t["plot_bg"],
+                    zorder=5)
+            offset = (0, 12) if is_max else (0, -16)
+            va = "bottom" if is_max else "top"
+            ax.annotate(f"{v:.1f}%\n{wl[idx]:.0f}nm",
+                        xy=(wl[idx], v), xytext=offset,
+                        textcoords="offset points",
+                        fontsize=7, color=color, va=va, ha="center",
+                        bbox=bbox, zorder=6)
+
     def _structure_label(self, structure, result):
         pol = result.polarization.upper()
         if structure:
@@ -94,14 +113,17 @@ class SpectrumCanvas(FigureCanvas):
             ax.plot(wl, result.R*100, color=self.CR, lw=2.0,
                     label="Reflectance (R)", zorder=3)
             ax.fill_between(wl, result.R*100, alpha=0.07, color=self.CR)
+            self._mark_minmax(ax, wl, result.R*100, self.CR)
         if sT:
             ax.plot(wl, result.T*100, color=self.CT, lw=2.0,
                     label="Transmittance (T)", zorder=3)
             ax.fill_between(wl, result.T*100, alpha=0.07, color=self.CT)
+            self._mark_minmax(ax, wl, result.T*100, self.CT)
         if sA:
             ax.plot(wl, result.A*100, color=self.CA, lw=2.0,
                     label="Absorbance (A)", zorder=3)
             ax.fill_between(wl, result.A*100, alpha=0.07, color=self.CA)
+            self._mark_minmax(ax, wl, result.A*100, self.CA)
 
         ax.legend(loc="upper right", fontsize=8,
                   facecolor=self.t["plot_ax"], labelcolor=self.t["t1"],
