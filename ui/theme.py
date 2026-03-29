@@ -123,9 +123,6 @@ QPushButton#ghost {{
     color: {t['t0']};
     border: 1px solid {t['line2']};
     border-radius: 7px;
-    padding: 0 6px;
-    min-height: 20px;
-    font-size: 11px;
 }}
 QPushButton#ghost:hover {{
     background: {t['hover']};
