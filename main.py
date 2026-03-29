@@ -137,7 +137,7 @@ class StratopticWindow(QMainWindow):
         sidebar = self._build_sidebar()
         splitter.addWidget(sidebar)
         plotarea = self._build_plotarea()
-        plotarea.setMinimumWidth(500)
+        plotarea.setMinimumWidth(400)
         splitter.addWidget(plotarea)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 3)
@@ -351,8 +351,8 @@ class StratopticWindow(QMainWindow):
 
     def _build_sidebar(self):
         outer = QWidget(); outer.setObjectName("sidebar")
-        outer.setMinimumWidth(300)
-        outer.setMaximumWidth(460)
+        outer.setMinimumWidth(280)
+        outer.setMaximumWidth(450)
         outer.setSizePolicy(QSizePolicy.Policy.Preferred,
                             QSizePolicy.Policy.Expanding)
         ol = QVBoxLayout(outer); ol.setContentsMargins(0, 0, 0, 0); ol.setSpacing(0)
@@ -362,7 +362,7 @@ class StratopticWindow(QMainWindow):
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         inner = QWidget()
-        il = QVBoxLayout(inner); il.setContentsMargins(10, 10, 10, 10); il.setSpacing(10)
+        il = QVBoxLayout(inner); il.setContentsMargins(14, 14, 14, 14); il.setSpacing(14)
 
         # ── Incident ──────────────────────────────────────────────────
         il.addWidget(sec("Incident Medium"))
