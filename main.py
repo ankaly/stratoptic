@@ -78,7 +78,7 @@ class StratopticWindow(QMainWindow):
         self.disp_canvas.apply_theme(self._t)
         self.efield_canvas.apply_theme(self._t)
         if hasattr(self, "btn_theme_toggle"):
-            self.btn_theme_toggle.setText("Light" if self._t is DARK else "Dark")
+            self.btn_theme_toggle.setText("☀" if self._t is DARK else "🌙")
 
     def _toggle_theme(self):
         self._set_theme("light" if self._t is DARK else "dark")
@@ -135,13 +135,11 @@ class StratopticWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setChildrenCollapsible(False)
         sidebar = self._build_sidebar()
-        sidebar.setMinimumWidth(280)
-        sidebar.setMaximumWidth(420)
         splitter.addWidget(sidebar)
         splitter.addWidget(self._build_plotarea())
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([320, 1180])
+        splitter.setSizes([300, 1200])
         splitter.setHandleWidth(2)
         vl.addWidget(splitter)
 
@@ -228,7 +226,7 @@ class StratopticWindow(QMainWindow):
         ob.addWidget(self.spin_d_min); ob.addWidget(dash2); ob.addWidget(self.spin_d_max)
         opt_l.addLayout(ob)
 
-        self.btn_opt = QPushButton("Optimize")
+        self.btn_opt = QPushButton("⚙  Optimize")
         self.btn_opt.setObjectName("warn")
         self.btn_opt.setFixedHeight(30)
         self.btn_opt.clicked.connect(self._run_optimization)
@@ -295,9 +293,9 @@ class StratopticWindow(QMainWindow):
         self.btn_calc.clicked.connect(self._calculate)
         right_l.addWidget(self.btn_calc)
 
-        self.btn_theme_toggle = QPushButton("Light" if self._t is DARK else "Dark")
+        self.btn_theme_toggle = QPushButton("☀" if self._t is DARK else "🌙")
         self.btn_theme_toggle.setObjectName("ghost")
-        self.btn_theme_toggle.setFixedSize(50, 30)
+        self.btn_theme_toggle.setFixedSize(30, 30)
         self.btn_theme_toggle.clicked.connect(self._toggle_theme)
         right_l.addWidget(self.btn_theme_toggle)
         right_l.addStretch()
@@ -351,7 +349,7 @@ class StratopticWindow(QMainWindow):
 
     def _build_sidebar(self):
         outer = QWidget(); outer.setObjectName("sidebar")
-        outer.setMinimumWidth(280)
+        outer.setMinimumWidth(240)
         outer.setSizePolicy(QSizePolicy.Policy.Preferred,
                             QSizePolicy.Policy.Expanding)
         ol = QVBoxLayout(outer); ol.setContentsMargins(0, 0, 0, 0); ol.setSpacing(0)
@@ -427,11 +425,11 @@ class StratopticWindow(QMainWindow):
         # Reorder buttons
         reorder_r = QHBoxLayout(); reorder_r.setSpacing(4)
         reorder_r.addStretch()
-        btn_up = QPushButton("Up"); btn_up.setObjectName("ghost")
-        btn_up.setFixedSize(36, 26); btn_up.setToolTip("Move layer up")
+        btn_up = QPushButton("↑"); btn_up.setObjectName("ghost")
+        btn_up.setFixedSize(30, 24); btn_up.setToolTip("Move layer up")
         btn_up.clicked.connect(self._move_layer_up)
-        btn_down = QPushButton("Dn"); btn_down.setObjectName("ghost")
-        btn_down.setFixedSize(36, 26); btn_down.setToolTip("Move layer down")
+        btn_down = QPushButton("↓"); btn_down.setObjectName("ghost")
+        btn_down.setFixedSize(30, 24); btn_down.setToolTip("Move layer down")
         btn_down.clicked.connect(self._move_layer_down)
         reorder_r.addWidget(btn_up); reorder_r.addWidget(btn_down)
         il.addLayout(reorder_r)
@@ -607,7 +605,7 @@ class StratopticWindow(QMainWindow):
         chk = QCheckBox(); cl.addWidget(chk)
         self.layer_table.setCellWidget(row, 2, cw)
         # Remove button — fits in row
-        btn = QPushButton("x"); btn.setObjectName("rm")
+        btn = QPushButton("✕"); btn.setObjectName("rm")
         btn.setFixedSize(26, 22); btn.clicked.connect(self._remove_layer)
         self.layer_table.setCellWidget(row, 3, btn)
         self._refresh_stack()
@@ -662,7 +660,7 @@ class StratopticWindow(QMainWindow):
             cl.setContentsMargins(0, 0, 0, 0); cl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             chk = QCheckBox(); chk.setChecked(opt); cl.addWidget(chk)
             t.setCellWidget(row, 2, cw)
-            btn = QPushButton("x"); btn.setObjectName("rm")
+            btn = QPushButton("✕"); btn.setObjectName("rm")
             btn.setFixedSize(26, 22); btn.clicked.connect(self._remove_layer)
             t.setCellWidget(row, 3, btn)
 
@@ -800,7 +798,7 @@ class StratopticWindow(QMainWindow):
         self.cond_table.setItem(row, 2, QTableWidgetItem(self.combo_cm.currentText()))
         self.cond_table.setItem(row, 3, QTableWidgetItem(self.combo_cg.currentText()))
         self.cond_table.setItem(row, 4, QTableWidgetItem(f"{self.spin_cw.value():.2f}"))
-        btn = QPushButton("x"); btn.setObjectName("rm")
+        btn = QPushButton("✕"); btn.setObjectName("rm")
         btn.setFixedSize(22, 20); btn.clicked.connect(self._remove_cond)
         self.cond_table.setCellWidget(row, 5, btn)
 
