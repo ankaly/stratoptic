@@ -136,10 +136,12 @@ class StratopticWindow(QMainWindow):
         splitter.setChildrenCollapsible(False)
         sidebar = self._build_sidebar()
         splitter.addWidget(sidebar)
-        splitter.addWidget(self._build_plotarea())
-        splitter.setStretchFactor(0, 0)
-        splitter.setStretchFactor(1, 1)
-        splitter.setSizes([300, 1200])
+        plotarea = self._build_plotarea()
+        plotarea.setMinimumWidth(400)
+        splitter.addWidget(plotarea)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 3)
+        splitter.setSizes([320, 1180])
         splitter.setHandleWidth(2)
         vl.addWidget(splitter)
 
@@ -349,7 +351,8 @@ class StratopticWindow(QMainWindow):
 
     def _build_sidebar(self):
         outer = QWidget(); outer.setObjectName("sidebar")
-        outer.setMinimumWidth(240)
+        outer.setMinimumWidth(280)
+        outer.setMaximumWidth(450)
         outer.setSizePolicy(QSizePolicy.Policy.Preferred,
                             QSizePolicy.Policy.Expanding)
         ol = QVBoxLayout(outer); ol.setContentsMargins(0, 0, 0, 0); ol.setSpacing(0)
