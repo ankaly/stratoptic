@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QSplitter, QLabel, QPushButton, QComboBox, QDoubleSpinBox,
     QSpinBox, QFrame, QSizePolicy, QCheckBox, QScrollArea,
     QTableWidget, QTableWidgetItem, QHeaderView,
-    QTabWidget, QSplashScreen,
+    QSplashScreen,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QColor, QActionGroup
@@ -23,13 +23,12 @@ from motor.optimizer import OptimizeWorker
 from motor.color import coating_color
 
 from ui.theme import DARK, LIGHT, build_style, is_dark, sec, muted, hdiv, vdiv
-from ui.canvases import SpectrumCanvas, DispersionCanvas, StackCanvas, EFieldCanvas
+from ui.plot_area import PlotArea
 from ui.splash import make_splash_pixmap
 from ui import dialogs
 
 import matplotlib
 matplotlib.use("QtAgg")
-from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 
 
 # =============================================================================
@@ -74,10 +73,7 @@ class StratopticWindow(QMainWindow):
         self._t = (DARK if (mode == "dark" or (mode == "auto" and is_dark()))
                    else LIGHT)
         self.setStyleSheet(build_style(self._t))
-        self.canvas.apply_theme(self._t)
-        self.stack_canvas.apply_theme(self._t)
-        self.disp_canvas.apply_theme(self._t)
-        self.efield_canvas.apply_theme(self._t)
+        self._plot_area.apply_theme(self._t)
         if hasattr(self, "btn_theme_toggle"):
             self.btn_theme_toggle.setText("☀" if self._t is DARK else "🌙")
 
@@ -535,51 +531,14 @@ class StratopticWindow(QMainWindow):
     # ── Plot area ──────────────────────────────────────────────────────
 
     def _build_plotarea(self):
-        w = QWidget(); w.setObjectName("plotarea")
-        vl = QVBoxLayout(w); vl.setContentsMargins(8, 4, 8, 4); vl.setSpacing(4)
-
-        vsplit = QSplitter(Qt.Orientation.Vertical)
-        vsplit.setChildrenCollapsible(False)
-
-        # Spectrum + toolbar
-        self.canvas = SpectrumCanvas(self._t)
-        nav = NavigationToolbar(self.canvas, w)
-        # Remove subplot/customize buttons
-        for action in nav.actions():
-            if action.text() in ("Subplots", "Customize"):
-                nav.removeAction(action)
-        spec_w = QWidget()
-        sl = QVBoxLayout(spec_w); sl.setContentsMargins(0, 0, 0, 0); sl.setSpacing(0)
-        sl.addWidget(self.canvas)
-        sl.addWidget(nav)
-        vsplit.addWidget(spec_w)
-
-        # Bottom tabs — expanding tabs so names are fully visible
-        self.btabs = QTabWidget()
-        self.btabs.setDocumentMode(True)
-        self.btabs.tabBar().setExpanding(True)
-
-        self.stack_canvas = StackCanvas(self._t)
-        self.btabs.addTab(self.stack_canvas, "Layer Stack")
-
-        res_w = QTableWidget(0, 4)
-        res_w.setHorizontalHeaderLabels(["λ (nm)","R (%)","T (%)","A (%)"])
-        res_w.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        res_w.setAlternatingRowColors(True)
-        res_w.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.res_table = res_w
-        self.btabs.addTab(res_w, "Spectral Data")
-
-        self.disp_canvas = DispersionCanvas(self._t)
-        self.btabs.addTab(self.disp_canvas, "Dispersion")
-
-        self.efield_canvas = EFieldCanvas(self._t)
-        self.btabs.addTab(self.efield_canvas, "E-Field")
-
-        vsplit.addWidget(self.btabs)
-        vsplit.setSizes([540, 200])
-        vl.addWidget(vsplit)
-        return w
+        self._plot_area = PlotArea(self._t)
+        self.canvas = self._plot_area.canvas
+        self.stack_canvas = self._plot_area.stack_canvas
+        self.disp_canvas = self._plot_area.disp_canvas
+        self.efield_canvas = self._plot_area.efield_canvas
+        self.btabs = self._plot_area.btabs
+        self.res_table = self._plot_area.res_table
+        return self._plot_area
 
     # ── Layer management ───────────────────────────────────────────────
 
