@@ -9,15 +9,20 @@ Hedef: Üniversite labları, optik kaplama firmaları
 Her session başında ROADMAP.md dosyasını oku — proje yol haritası ve mevcut durum orada.
 
 ## Dosya Yapısı
-- main.py          → Ana giriş + UI (refactor bekliyor)
-- motor/engine.py  → TMM core
-- motor/rii_db.py  → Refractiveindex.info entegrasyonu
+- main.py            → Ana giriş + orkestrasyon (298 satır)
+- motor/engine.py    → TMM core
+- motor/rii_db.py    → Refractiveindex.info entegrasyonu
 - motor/optimizer.py → Kalınlık optimizasyonu (QThread)
-- motor/color.py   → CIE renk hesaplama
-- core/state.py    → AppState (henüz entegre değil)
-- ui/theme.py      → DARK/LIGHT tema
-- ui/canvases.py   → 4 canvas sınıfı (ayrılacak)
-- data/rii_db/     → RII veritabanı
+- motor/color.py     → CIE renk hesaplama
+- core/state.py      → AppState (henüz entegre değil)
+- ui/sidebar.py      → Sidebar widget (layers, materials, conditions)
+- ui/ribbon.py       → Ribbon + SummaryBar widget (calc params, show checkboxes)
+- ui/plot_area.py    → PlotArea widget (canvasler + tabs + res_table)
+- ui/dialogs.py      → Dialog fonksiyonları (export, import, about)
+- ui/splash.py       → Splash screen pixmap
+- ui/theme.py        → DARK/LIGHT tema
+- ui/canvases.py     → 4 canvas sınıfı (ayrılacak — Faz 2)
+- data/rii_db/       → RII veritabanı
 
 ## Çalışma Kuralları
 - Stratoptic projesi. ~/stratoptic/ dizininde çalış, önce `source .venv/bin/activate`.

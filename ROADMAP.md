@@ -25,28 +25,27 @@
 
 ---
 
-## FAZA 1 — UI Refactor: main.py Parcalama (Oncelik: Yuksek)
+## FAZA 1 — UI Refactor: main.py Parcalama (TAMAMLANDI)
 
 ### 1.1 Sidebar Cikarimi
-- [ ] `main.py` _build_sidebar() + iliskili metodlari → `ui/sidebar.py`
-- [ ] Layer management metodlari (_add_layer, _remove_layer, _swap_rows, vb.)
-- [ ] Substrate/Incident combo'lari
-- [ ] Optimization conditions UI
+- [x] `main.py` _build_sidebar() + iliskili metodlari → `ui/sidebar.py`
+- [x] Layer management metodlari (_add_layer, _remove_layer, _swap_rows, vb.)
+- [x] Substrate/Incident combo'lari
+- [x] Optimization conditions UI
 
 ### 1.2 Ribbon Cikarimi
-- [ ] `main.py` _build_ribbon() → `ui/ribbon.py`
-- [ ] Calculation parametreleri (wl range, angle, pol)
-- [ ] Optimization bounds + button
+- [x] `main.py` _build_ribbon() → `ui/ribbon.py`
+- [x] Calculation parametreleri (wl range, angle, pol)
+- [x] Optimization bounds + button
 
 ### 1.3 Plot Area Cikarimi
-- [ ] `main.py` _build_plotarea() → `ui/plot_area.py`
-- [ ] Tab yonetimi (Spectrum, Stack, Dispersion, E-Field)
+- [x] `main.py` _build_plotarea() → `ui/plot_area.py`
+- [x] Tab yonetimi (Spectrum, Stack, Dispersion, E-Field)
 
 ### 1.4 Main Window Sadece Orkestrasyon
-- [ ] `main_window.py` sadece widget'lari birlestiren ince katman
-- [ ] Menu + dialog'lar ayri (`ui/dialogs.py`)
-- [ ] Splash screen ayri (`ui/splash.py`)
-- [ ] Hedef: main_window.py < 200 satir
+- [x] `main.py` sadece widget'lari birlestiren ince katman (298 satir)
+- [x] Menu + dialog'lar ayri (`ui/dialogs.py`)
+- [x] Splash screen ayri (`ui/splash.py`)
 
 ### 1.5 AppState Entegrasyonu
 - [ ] `core/state.py` AppState'i aktif kullanima al
