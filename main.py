@@ -10,7 +10,7 @@ import numpy as np
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QLabel, QPushButton, QComboBox, QDoubleSpinBox,
-    QSpinBox, QFrame, QSizePolicy, QCheckBox, QScrollArea,
+    QSpinBox, QSizePolicy, QCheckBox, QScrollArea,
     QTableWidget, QTableWidgetItem, QHeaderView,
     QSplashScreen,
 )
@@ -22,8 +22,9 @@ from motor.engine import Layer, Structure, TMMEngine
 from motor.optimizer import OptimizeWorker
 from motor.color import coating_color
 
-from ui.theme import DARK, LIGHT, build_style, is_dark, sec, muted, hdiv, vdiv
+from ui.theme import DARK, LIGHT, build_style, is_dark, sec, muted, hdiv
 from ui.plot_area import PlotArea
+from ui.ribbon import Ribbon, SummaryBar
 from ui.splash import make_splash_pixmap
 from ui import dialogs
 
@@ -140,207 +141,39 @@ class StratopticWindow(QMainWindow):
         splitter.setHandleWidth(2)
         vl.addWidget(splitter)
 
-    # ── Ribbon ─────────────────────────────────────────────────────────
+    # ── Ribbon + Summary bar ─────────────────────────────────────────
 
     def _build_ribbon(self):
-        ribbon = QWidget(); ribbon.setObjectName("ribbon")
-        ribbon.setFixedHeight(92)
-        hl = QHBoxLayout(ribbon)
-        hl.setContentsMargins(16, 0, 12, 0); hl.setSpacing(0)
-
-        # App identity
-        id_w = QWidget()
-        id_l = QVBoxLayout(id_w); id_l.setContentsMargins(0,0,0,0); id_l.setSpacing(1)
-        id_l.addStretch()
-        name = QLabel("STRATOPTIC"); name.setObjectName("appname")
-        sub  = QLabel("Thin Film Simulation Platform"); sub.setObjectName("appsub")
-        id_l.addWidget(name); id_l.addWidget(sub)
-        id_l.addStretch()
-        hl.addWidget(id_w)
-        hl.addSpacing(16)
-        hl.addWidget(vdiv(self._t))
-        hl.addSpacing(14)
-
-        # ── Calculation section ───────────────────────────────────────
-        calc_w = QWidget()
-        calc_l = QVBoxLayout(calc_w)
-        calc_l.setContentsMargins(0, 8, 0, 4); calc_l.setSpacing(6)
-        calc_l.addWidget(sec("Calculation"))
-
-        r1 = QHBoxLayout(); r1.setSpacing(8)
-        r1.addWidget(muted("λ range"))
-        self.spin_wl_min = QSpinBox(); self.spin_wl_min.setRange(100, 5000)
-        self.spin_wl_min.setValue(380); self.spin_wl_min.setSuffix(" nm")
-        self.spin_wl_min.setFixedWidth(82)
-        dash1 = muted("–"); dash1.setFixedWidth(8)
-        dash1.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.spin_wl_max = QSpinBox(); self.spin_wl_max.setRange(100, 5000)
-        self.spin_wl_max.setValue(800); self.spin_wl_max.setSuffix(" nm")
-        self.spin_wl_max.setFixedWidth(82)
-        r1.addWidget(self.spin_wl_min); r1.addWidget(dash1); r1.addWidget(self.spin_wl_max)
-        r1.addSpacing(10)
-        r1.addWidget(muted("pts"))
-        self.spin_pts = QSpinBox(); self.spin_pts.setRange(50, 5000)
-        self.spin_pts.setValue(500); self.spin_pts.setFixedWidth(68)
-        r1.addWidget(self.spin_pts)
-        calc_l.addLayout(r1)
-
-        r2 = QHBoxLayout(); r2.setSpacing(8)
-        r2.addWidget(muted("θ"))
-        self.spin_angle = QDoubleSpinBox(); self.spin_angle.setRange(0, 89.9)
-        self.spin_angle.setValue(0.0); self.spin_angle.setSuffix(" °")
-        self.spin_angle.setSingleStep(1.0); self.spin_angle.setFixedWidth(70)
-        r2.addWidget(self.spin_angle)
-        r2.addSpacing(10)
-        r2.addWidget(muted("pol"))
-        self.combo_pol = QComboBox()
-        self.combo_pol.addItems(["s (TE)", "p (TM)", "Unpolarized"])
-        self.combo_pol.setFixedWidth(112)
-        r2.addWidget(self.combo_pol)
-        calc_l.addLayout(r2)
-
-        hl.addWidget(calc_w)
-        hl.addSpacing(10)
-        hl.addWidget(vdiv(self._t))
-        hl.addSpacing(14)
-
-        # ── Optimization section ──────────────────────────────────────
-        opt_w = QWidget()
-        opt_l = QVBoxLayout(opt_w)
-        opt_l.setContentsMargins(0, 8, 0, 4); opt_l.setSpacing(6)
-        opt_l.addWidget(sec("Optimization"))
-
-        ob = QHBoxLayout(); ob.setSpacing(8)
-        ob.addWidget(muted("d bounds"))
-        self.spin_d_min = QSpinBox(); self.spin_d_min.setRange(1, 10000)
-        self.spin_d_min.setValue(1); self.spin_d_min.setSuffix(" nm")
-        self.spin_d_min.setFixedWidth(74)
-        dash2 = muted("–"); dash2.setFixedWidth(8)
-        dash2.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.spin_d_max = QSpinBox(); self.spin_d_max.setRange(1, 10000)
-        self.spin_d_max.setValue(500); self.spin_d_max.setSuffix(" nm")
-        self.spin_d_max.setFixedWidth(74)
-        ob.addWidget(self.spin_d_min); ob.addWidget(dash2); ob.addWidget(self.spin_d_max)
-        opt_l.addLayout(ob)
-
-        self.btn_opt = QPushButton("⚙  Optimize")
-        self.btn_opt.setObjectName("warn")
-        self.btn_opt.setFixedHeight(30)
-        self.btn_opt.clicked.connect(self._run_optimization)
-        opt_hint = muted("Check 'Opt' column in layer table")
-        opt_l.addWidget(opt_hint)
-        opt_l.addWidget(self.btn_opt)
-
-        hl.addWidget(opt_w)
-        hl.addSpacing(10)
-        hl.addWidget(vdiv(self._t))
-        hl.addSpacing(12)
-
-        # ── Show + Calculate ──────────────────────────────────────────
-        right_w = QWidget()
-        right_l = QVBoxLayout(right_w)
-        right_l.setContentsMargins(0, 8, 0, 4); right_l.setSpacing(8)
-        right_l.addStretch()
-
-        show_r = QHBoxLayout(); show_r.setSpacing(8)
-        show_r.addWidget(muted("Show:"))
-        self.chk_R = QCheckBox("R"); self.chk_R.setChecked(True)
-        self.chk_T = QCheckBox("T"); self.chk_T.setChecked(True)
-        self.chk_A = QCheckBox("A"); self.chk_A.setChecked(True)
-        # Colored indicators
-        self.chk_R.setStyleSheet(
-            "QCheckBox{color:#FF453A;font-weight:700;spacing:5px;}"
-            "QCheckBox::indicator{background:#FF453A25;border:1.5px solid #FF453A88;border-radius:4px;width:14px;height:14px;}"
-            "QCheckBox::indicator:hover{border-color:#FF453A;}"
-            "QCheckBox::indicator:checked{background:#FF453A;border-color:#FF453A;}"
-        )
-        self.chk_T.setStyleSheet(
-            "QCheckBox{color:#0A84FF;font-weight:700;spacing:5px;}"
-            "QCheckBox::indicator{background:#0A84FF25;border:1.5px solid #0A84FF88;border-radius:4px;width:14px;height:14px;}"
-            "QCheckBox::indicator:hover{border-color:#0A84FF;}"
-            "QCheckBox::indicator:checked{background:#0A84FF;border-color:#0A84FF;}"
-        )
-        self.chk_A.setStyleSheet(
-            "QCheckBox{color:#32D74B;font-weight:700;spacing:5px;}"
-            "QCheckBox::indicator{background:#32D74B25;border:1.5px solid #32D74B88;border-radius:4px;width:14px;height:14px;}"
-            "QCheckBox::indicator:hover{border-color:#32D74B;}"
-            "QCheckBox::indicator:checked{background:#32D74B;border-color:#32D74B;}"
-        )
-        for chk in [self.chk_R, self.chk_T, self.chk_A]:
-            chk.stateChanged.connect(self._replot)
-            show_r.addWidget(chk)
-        show_r.addSpacing(12)
-        self.chk_overlay = QCheckBox("Overlay")
-        self.chk_overlay.setStyleSheet(
-            "QCheckBox{color:#FFD60A;font-weight:700;spacing:5px;}"
-            "QCheckBox::indicator{background:#FFD60A25;border:1.5px solid #FFD60A88;border-radius:4px;width:14px;height:14px;}"
-            "QCheckBox::indicator:hover{border-color:#FFD60A;}"
-            "QCheckBox::indicator:checked{background:#FFD60A;border-color:#FFD60A;}"
-        )
-        show_r.addWidget(self.chk_overlay)
-        self.btn_clear_overlay = QPushButton("Clear")
-        self.btn_clear_overlay.setObjectName("ghost")
-        self.btn_clear_overlay.setFixedWidth(48)
-        self.btn_clear_overlay.clicked.connect(self._clear_overlay)
-        show_r.addWidget(self.btn_clear_overlay)
-        right_l.addLayout(show_r)
-
-        self.btn_calc = QPushButton("Calculate")
-        self.btn_calc.setObjectName("calc")
-        self.btn_calc.clicked.connect(self._calculate)
-        right_l.addWidget(self.btn_calc)
-
-        self.btn_theme_toggle = QPushButton("☀" if self._t is DARK else "🌙")
-        self.btn_theme_toggle.setObjectName("ghost")
-        self.btn_theme_toggle.setFixedSize(30, 30)
-        self.btn_theme_toggle.clicked.connect(self._toggle_theme)
-        right_l.addWidget(self.btn_theme_toggle)
-        right_l.addStretch()
-        hl.addWidget(right_w)
-
-        return ribbon
-
-    # ── Summary bar ────────────────────────────────────────────────────
+        self.ribbon = Ribbon(self._t)
+        # Expose controls used by other methods
+        self.spin_wl_min = self.ribbon.spin_wl_min
+        self.spin_wl_max = self.ribbon.spin_wl_max
+        self.spin_pts = self.ribbon.spin_pts
+        self.spin_angle = self.ribbon.spin_angle
+        self.combo_pol = self.ribbon.combo_pol
+        self.spin_d_min = self.ribbon.spin_d_min
+        self.spin_d_max = self.ribbon.spin_d_max
+        self.btn_opt = self.ribbon.btn_opt
+        self.chk_R = self.ribbon.chk_R
+        self.chk_T = self.ribbon.chk_T
+        self.chk_A = self.ribbon.chk_A
+        self.chk_overlay = self.ribbon.chk_overlay
+        self.btn_theme_toggle = self.ribbon.btn_theme_toggle
+        # Connect signals
+        self.ribbon.calculate_requested.connect(self._calculate)
+        self.ribbon.optimize_requested.connect(self._run_optimization)
+        self.ribbon.theme_toggle_requested.connect(self._toggle_theme)
+        self.ribbon.replot_requested.connect(self._replot)
+        self.ribbon.overlay_cleared.connect(self._clear_overlay)
+        return self.ribbon
 
     def _build_sumbar(self):
-        w = QWidget(); w.setObjectName("sumbar"); w.setFixedHeight(44)
-        hl = QHBoxLayout(w); hl.setContentsMargins(20, 0, 20, 0); hl.setSpacing(0)
-        self._sw = {}
-        for key, label, color in [
-            ("R", "avg Reflectance",   "#FF453A"),
-            ("T", "avg Transmittance", "#0A84FF"),
-            ("A", "avg Absorbance",    "#32D74B"),
-        ]:
-            cell = QWidget()
-            cl = QHBoxLayout(cell); cl.setContentsMargins(0, 0, 0, 0); cl.setSpacing(8)
-            val = QLabel("—"); val.setObjectName("statval")
-            val.setStyleSheet(f"color:{color};font-size:15px;font-weight:700;")
-            kl  = QLabel(label); kl.setObjectName("statkey")
-            cl.addWidget(val); cl.addWidget(kl)
-            self._sw[key] = val; hl.addWidget(cell)
-            if key != "A":
-                sep = QFrame(); sep.setFrameShape(QFrame.Shape.VLine)
-                sep.setStyleSheet(
-                    f"background:{self._t['line0']};max-width:1px;border:none;")
-                hl.addSpacing(18); hl.addWidget(sep); hl.addSpacing(18)
-        # Color swatches (reflection + transmission)
-        hl.addSpacing(18)
-        for attr, label in [("swatch_r", "R"), ("swatch_t", "T")]:
-            sl = QHBoxLayout(); sl.setSpacing(5)
-            swatch = QLabel()
-            swatch.setFixedSize(16, 16)
-            swatch.setStyleSheet("background:#333;border-radius:3px;border:1px solid #555;")
-            lbl_s = QLabel(label); lbl_s.setObjectName("statkey")
-            sl.addWidget(swatch); sl.addWidget(lbl_s)
-            setattr(self, attr, swatch)
-            hl.addLayout(sl)
-            hl.addSpacing(12)
-        hl.addStretch()
-        self.lbl_info = QLabel(""); self.lbl_info.setObjectName("statkey")
-        self.lbl_info.setAlignment(
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        hl.addWidget(self.lbl_info)
-        return w
+        self.sumbar = SummaryBar(self._t)
+        self.swatch_r = self.sumbar.swatch_r
+        self.swatch_t = self.sumbar.swatch_t
+        self.lbl_info = self.sumbar.lbl_info
+        self._sw = self.sumbar._sw
+        return self.sumbar
 
     # ── Sidebar ────────────────────────────────────────────────────────
 
