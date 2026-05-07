@@ -30,14 +30,6 @@ import matplotlib
 matplotlib.use("QtAgg")
 
 
-# =============================================================================
-# OPTIMIZER
-# =============================================================================
-
-# =============================================================================
-# MAIN WINDOW
-# =============================================================================
-
 class StratopticWindow(QMainWindow):
 
     def __init__(self, splash=None):
@@ -72,9 +64,8 @@ class StratopticWindow(QMainWindow):
         self._t = (DARK if (mode == "dark" or (mode == "auto" and is_dark()))
                    else LIGHT)
         self.setStyleSheet(build_style(self._t))
-        self._plot_area.apply_theme(self._t)
-        if hasattr(self, "btn_theme_toggle"):
-            self.btn_theme_toggle.setText("☀" if self._t is DARK else "🌙")
+        self.plot_area.apply_theme(self._t)
+        self.ribbon.btn_theme_toggle.setText("☀" if self._t is DARK else "🌙")
 
     def _toggle_theme(self):
         self._set_theme("light" if self._t is DARK else "dark")
@@ -117,7 +108,7 @@ class StratopticWindow(QMainWindow):
         ab = QAction("About Stratoptic", self)
         ab.triggered.connect(self._show_about); hm.addAction(ab)
 
-    # ── UI skeleton ────────────────────────────────────────────────────
+    # ── UI assembly ────────────────────────────────────────────────────
 
     def _build_ui(self):
         root = QWidget(); root.setObjectName("root")
@@ -125,99 +116,52 @@ class StratopticWindow(QMainWindow):
         vl = QVBoxLayout(root)
         vl.setContentsMargins(0, 0, 0, 0); vl.setSpacing(0)
 
-        vl.addWidget(self._build_ribbon())
-        vl.addWidget(self._build_sumbar())
+        self.ribbon = Ribbon(self._t)
+        self.ribbon.calculate_requested.connect(self._calculate)
+        self.ribbon.optimize_requested.connect(self._run_optimization)
+        self.ribbon.theme_toggle_requested.connect(self._toggle_theme)
+        self.ribbon.replot_requested.connect(self._replot)
+        self.ribbon.overlay_cleared.connect(self._clear_overlay)
+        vl.addWidget(self.ribbon)
+
+        self.sumbar = SummaryBar(self._t)
+        vl.addWidget(self.sumbar)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setChildrenCollapsible(False)
-        sidebar = self._build_sidebar()
-        splitter.addWidget(sidebar)
-        splitter.addWidget(self._build_plotarea())
+
+        self.sidebar = Sidebar(self._t, self.db)
+        self.sidebar.status_message.connect(self.statusBar().showMessage)
+        self.sidebar.dispersion_requested.connect(self._on_dispersion)
+        self.sidebar.stack_refresh_requested.connect(self._refresh_stack)
+        splitter.addWidget(self.sidebar)
+
+        self.plot_area = PlotArea(self._t)
+        splitter.addWidget(self.plot_area)
+
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setSizes([300, 1200])
         splitter.setHandleWidth(2)
         vl.addWidget(splitter)
 
-    # ── Ribbon + Summary bar ─────────────────────────────────────────
-
-    def _build_ribbon(self):
-        self.ribbon = Ribbon(self._t)
-        # Expose controls used by other methods
-        self.spin_wl_min = self.ribbon.spin_wl_min
-        self.spin_wl_max = self.ribbon.spin_wl_max
-        self.spin_pts = self.ribbon.spin_pts
-        self.spin_angle = self.ribbon.spin_angle
-        self.combo_pol = self.ribbon.combo_pol
-        self.spin_d_min = self.ribbon.spin_d_min
-        self.spin_d_max = self.ribbon.spin_d_max
-        self.btn_opt = self.ribbon.btn_opt
-        self.chk_R = self.ribbon.chk_R
-        self.chk_T = self.ribbon.chk_T
-        self.chk_A = self.ribbon.chk_A
-        self.chk_overlay = self.ribbon.chk_overlay
-        self.btn_theme_toggle = self.ribbon.btn_theme_toggle
-        # Connect signals
-        self.ribbon.calculate_requested.connect(self._calculate)
-        self.ribbon.optimize_requested.connect(self._run_optimization)
-        self.ribbon.theme_toggle_requested.connect(self._toggle_theme)
-        self.ribbon.replot_requested.connect(self._replot)
-        self.ribbon.overlay_cleared.connect(self._clear_overlay)
-        return self.ribbon
-
-    def _build_sumbar(self):
-        self.sumbar = SummaryBar(self._t)
-        self.swatch_r = self.sumbar.swatch_r
-        self.swatch_t = self.sumbar.swatch_t
-        self.lbl_info = self.sumbar.lbl_info
-        self._sw = self.sumbar._sw
-        return self.sumbar
-
-    # ── Sidebar ────────────────────────────────────────────────────────
-
-    def _build_sidebar(self):
-        self.sidebar = Sidebar(self._t, self.db)
-        # Expose controls used by other methods
-        self.combo_inc = self.sidebar.combo_inc
-        self.combo_sub = self.sidebar.combo_sub
-        self.combo_mat = self.sidebar.combo_mat
-        self.combo_page = self.sidebar.combo_page
-        self.layer_table = self.sidebar.layer_table
-        self.cond_table = self.sidebar.cond_table
-        # Connect signals
-        self.sidebar.status_message.connect(self.statusBar().showMessage)
-        self.sidebar.dispersion_requested.connect(self._on_dispersion)
-        self.sidebar.stack_refresh_requested.connect(self._refresh_stack)
-        return self.sidebar
-
-    # ── Plot area ──────────────────────────────────────────────────────
-
-    def _build_plotarea(self):
-        self._plot_area = PlotArea(self._t)
-        self.canvas = self._plot_area.canvas
-        self.stack_canvas = self._plot_area.stack_canvas
-        self.disp_canvas = self._plot_area.disp_canvas
-        self.efield_canvas = self._plot_area.efield_canvas
-        self.btabs = self._plot_area.btabs
-        self.res_table = self._plot_area.res_table
-        return self._plot_area
-
-    # ── Sidebar signal handlers ─────────────────────────────────────────
+    # ── Signal handlers ───────────────────────────────────────────────
 
     def _on_dispersion(self, mat):
-        self.disp_canvas.plot(mat, self.db)
-        self.btabs.setCurrentWidget(self.disp_canvas)
+        self.plot_area.disp_canvas.plot(mat, self.db)
+        self.plot_area.btabs.setCurrentWidget(self.plot_area.disp_canvas)
 
     def _refresh_stack(self):
         try:
-            self.stack_canvas.plot(self.sidebar.build_structure(), self.db)
+            self.plot_area.stack_canvas.plot(
+                self.sidebar.build_structure(), self.db)
         except Exception:
-            self.stack_canvas._empty()
+            self.plot_area.stack_canvas._empty()
 
     # ── Calculation ────────────────────────────────────────────────────
 
     def _get_pol(self):
-        t = self.combo_pol.currentText()
+        t = self.ribbon.combo_pol.currentText()
         if "s" in t: return "s"
         if "p" in t: return "p"
         return "unpolarized"
@@ -225,75 +169,46 @@ class StratopticWindow(QMainWindow):
     def _calculate(self):
         try:
             st = self.sidebar.build_structure()
-            wl = np.linspace(self.spin_wl_min.value(),
-                             self.spin_wl_max.value(),
-                             self.spin_pts.value())
-            pol = self._get_pol(); ang = self.spin_angle.value()
+            wl = np.linspace(self.ribbon.spin_wl_min.value(),
+                             self.ribbon.spin_wl_max.value(),
+                             self.ribbon.spin_pts.value())
+            pol = self._get_pol(); ang = self.ribbon.spin_angle.value()
             result = TMMEngine(st).calculate(wl, angle=ang,
                                               polarization=pol,
                                               substrate_thickness_mm=1.0)
-            if self.chk_overlay.isChecked() and self._last_result is not None:
+            if self.ribbon.chk_overlay.isChecked() and self._last_result is not None:
                 n = len(self._overlay_results)
                 color = self._overlay_palette[n % len(self._overlay_palette)]
                 self._overlay_results.append((self._last_result, self._last_structure, color))
                 if len(self._overlay_results) > len(self._overlay_palette):
                     self._overlay_results.pop(0)
             self._last_result = result; self._last_structure = st
-            self.canvas.plot(result, self.chk_R.isChecked(),
-                             self.chk_T.isChecked(), self.chk_A.isChecked(), st,
-                             overlays=self._overlay_results)
-            self._sw["R"].setText(f"{result.R.mean()*100:.2f}%")
-            self._sw["T"].setText(f"{result.T.mean()*100:.2f}%")
-            self._sw["A"].setText(f"{result.A.mean()*100:.2f}%")
-            self._update_swatches(result)
-            self.lbl_info.setText(
+            self.plot_area.canvas.plot(
+                result, self.ribbon.chk_R.isChecked(),
+                self.ribbon.chk_T.isChecked(), self.ribbon.chk_A.isChecked(),
+                st, overlays=self._overlay_results)
+            self.sumbar.update_stats(result.R.mean(), result.T.mean(), result.A.mean())
+            self.sumbar.update_swatches(result, coating_color)
+            self.sumbar.lbl_info.setText(
                 f"λ {wl[0]:.0f}–{wl[-1]:.0f} nm  ·  {len(wl)} pts  ·  {pol}  ·  θ={ang}°")
-            step = max(1, len(wl)//50)
-            self.res_table.setRowCount(0)
-            for i in range(0, len(wl), step):
-                r = self.res_table.rowCount(); self.res_table.insertRow(r)
-                self.res_table.setItem(r, 0, QTableWidgetItem(f"{wl[i]:.1f}"))
-                self.res_table.setItem(r, 1, QTableWidgetItem(f"{result.R[i]*100:.3f}"))
-                self.res_table.setItem(r, 2, QTableWidgetItem(f"{result.T[i]*100:.3f}"))
-                self.res_table.setItem(r, 3, QTableWidgetItem(f"{result.A[i]*100:.3f}"))
-                self.res_table.item(r, 1).setForeground(QColor("#FF453A"))
-                self.res_table.item(r, 2).setForeground(QColor("#0A84FF"))
-                self.res_table.item(r, 3).setForeground(QColor("#32D74B"))
-            self.stack_canvas.plot(st, self.db)
+            self.plot_area.update_results(wl, result)
+            self.plot_area.stack_canvas.plot(st, self.db)
             self._update_efield(st, wl, pol, ang)
-            self.btabs.setCurrentIndex(0)
+            self.plot_area.btabs.setCurrentIndex(0)
             self.statusBar().showMessage("Calculation complete.")
         except Exception as e:
             import traceback
             self.statusBar().showMessage(f"Error: {e}")
             print(traceback.format_exc())
 
-    def _update_swatches(self, result):
-        for mode, widget in [('reflection', self.swatch_r),
-                              ('transmission', self.swatch_t)]:
-            try:
-                c = coating_color(result, mode=mode)
-                hex_c = c['hex']
-                x, y  = c['xy']
-                R, G, B = c['sRGB']
-                widget.setStyleSheet(
-                    f"background:{hex_c};border-radius:3px;border:1px solid #555;")
-                widget.setToolTip(
-                    f"{'Reflection' if mode=='reflection' else 'Transmission'} color\n"
-                    f"xy = ({x:.4f}, {y:.4f})\n"
-                    f"sRGB = ({R}, {G}, {B})\n"
-                    f"{hex_c}")
-            except Exception:
-                pass
-
     def _update_efield(self, st, wl, pol, ang):
         wl_mid = float(wl[len(wl) // 2])
         ef_pol = pol if pol != "unpolarized" else "s"
         try:
             ef = TMMEngine(st).electric_field(wl_mid, angle=ang, polarization=ef_pol)
-            self.efield_canvas.plot(ef, wl_mid)
+            self.plot_area.efield_canvas.plot(ef, wl_mid)
         except Exception:
-            self.efield_canvas._empty()
+            self.plot_area.efield_canvas._empty()
 
     def _clear_overlay(self):
         self._overlay_results = []
@@ -301,55 +216,60 @@ class StratopticWindow(QMainWindow):
 
     def _replot(self):
         if self._last_result:
-            self.canvas.plot(self._last_result, self.chk_R.isChecked(),
-                             self.chk_T.isChecked(), self.chk_A.isChecked(),
-                             self._last_structure,
-                             overlays=self._overlay_results)
+            self.plot_area.canvas.plot(
+                self._last_result, self.ribbon.chk_R.isChecked(),
+                self.ribbon.chk_T.isChecked(), self.ribbon.chk_A.isChecked(),
+                self._last_structure, overlays=self._overlay_results)
 
     # ── Optimization ───────────────────────────────────────────────────
 
     def _run_optimization(self):
         oi = self.sidebar.get_opt_idx()
         if not oi:
-            self.statusBar().showMessage("No layers selected for optimization."); return
-        conds  = self.sidebar.get_conditions(self.spin_wl_min.value(),
-                                             self.spin_wl_max.value())
-        bounds = [(self.spin_d_min.value(), self.spin_d_max.value())] * len(oi)
-        self.btn_opt.setEnabled(False)
+            self.statusBar().showMessage("No layers selected for optimization.")
+            return
+        conds = self.sidebar.get_conditions(self.ribbon.spin_wl_min.value(),
+                                            self.ribbon.spin_wl_max.value())
+        bounds = [(self.ribbon.spin_d_min.value(),
+                   self.ribbon.spin_d_max.value())] * len(oi)
+        self.ribbon.btn_opt.setEnabled(False)
         cs = "  ·  ".join([f"{m} {g} [{w0:.0f}–{w1:.0f}nm]×{wt}"
                             for w0,w1,m,g,wt in conds])
         self.statusBar().showMessage(f"Optimizing {len(oi)} layer(s)  ·  {cs}")
         self._worker = OptimizeWorker(
             self.sidebar.build_structure_opt, oi, bounds, conds,
-            self._get_pol(), self.spin_angle.value())
+            self._get_pol(), self.ribbon.spin_angle.value())
         self._worker.progress.connect(self.statusBar().showMessage)
         self._worker.finished.connect(self._on_opt_done)
         self._worker.start()
 
     def _on_opt_done(self, thicknesses, obj_val):
-        self.btn_opt.setEnabled(True)
+        self.ribbon.btn_opt.setEnabled(True)
         for i, row in enumerate(self.sidebar.get_opt_idx()):
-            self.layer_table.setItem(row, 1, QTableWidgetItem(f"{thicknesses[i]:.1f}"))
+            self.sidebar.layer_table.setItem(
+                row, 1, QTableWidgetItem(f"{thicknesses[i]:.1f}"))
         self.statusBar().showMessage(
             f"Done  ·  obj={obj_val:.4f}  ·  " +
             "  ".join([f"L{i+1}={d:.1f}nm" for i,d in enumerate(thicknesses)]))
         self._calculate()
 
-    # ── Export / Import / Dialogs ───────────────────────────────────────
+    # ── Dialogs ────────────────────────────────────────────────────────
 
     def _export_png(self):
-        dialogs.export_png(self, self._last_result, self.canvas)
+        dialogs.export_png(self, self._last_result, self.plot_area.canvas)
 
     def _export_csv(self):
         dialogs.export_csv(self, self._last_result)
 
     def _import_dataset(self):
-        combos = [self.combo_mat, self.combo_inc, self.combo_sub]
+        combos = [self.sidebar.combo_mat, self.sidebar.combo_inc,
+                  self.sidebar.combo_sub]
         dialogs.import_dataset(self, self.db, combos,
                                self._user_datasets, self.statusBar())
 
     def _manage_datasets(self):
-        combos = [self.combo_mat, self.combo_inc, self.combo_sub]
+        combos = [self.sidebar.combo_mat, self.sidebar.combo_inc,
+                  self.sidebar.combo_sub]
         dialogs.manage_datasets_dialog(self, self.db, combos,
                                        self._user_datasets, self.statusBar())
 

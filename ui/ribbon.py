@@ -221,3 +221,21 @@ class SummaryBar(QWidget):
         self._sw["R"].setText(f"{R_avg*100:.2f}%")
         self._sw["T"].setText(f"{T_avg*100:.2f}%")
         self._sw["A"].setText(f"{A_avg*100:.2f}%")
+
+    def update_swatches(self, result, coating_color_fn):
+        for mode, widget in [('reflection', self.swatch_r),
+                              ('transmission', self.swatch_t)]:
+            try:
+                c = coating_color_fn(result, mode=mode)
+                hex_c = c['hex']
+                x, y = c['xy']
+                R, G, B = c['sRGB']
+                widget.setStyleSheet(
+                    f"background:{hex_c};border-radius:3px;border:1px solid #555;")
+                widget.setToolTip(
+                    f"{'Reflection' if mode=='reflection' else 'Transmission'} color\n"
+                    f"xy = ({x:.4f}, {y:.4f})\n"
+                    f"sRGB = ({R}, {G}, {B})\n"
+                    f"{hex_c}")
+            except Exception:
+                pass

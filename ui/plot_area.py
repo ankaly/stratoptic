@@ -1,7 +1,8 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QSplitter, QTabWidget,
-    QTableWidget, QHeaderView,
+    QTableWidget, QTableWidgetItem, QHeaderView,
 )
+from PyQt6.QtGui import QColor
 from PyQt6.QtCore import Qt
 
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
@@ -64,3 +65,16 @@ class PlotArea(QWidget):
         self.stack_canvas.apply_theme(theme)
         self.disp_canvas.apply_theme(theme)
         self.efield_canvas.apply_theme(theme)
+
+    def update_results(self, wl, result):
+        step = max(1, len(wl) // 50)
+        self.res_table.setRowCount(0)
+        for i in range(0, len(wl), step):
+            r = self.res_table.rowCount(); self.res_table.insertRow(r)
+            self.res_table.setItem(r, 0, QTableWidgetItem(f"{wl[i]:.1f}"))
+            self.res_table.setItem(r, 1, QTableWidgetItem(f"{result.R[i]*100:.3f}"))
+            self.res_table.setItem(r, 2, QTableWidgetItem(f"{result.T[i]*100:.3f}"))
+            self.res_table.setItem(r, 3, QTableWidgetItem(f"{result.A[i]*100:.3f}"))
+            self.res_table.item(r, 1).setForeground(QColor("#FF453A"))
+            self.res_table.item(r, 2).setForeground(QColor("#0A84FF"))
+            self.res_table.item(r, 3).setForeground(QColor("#32D74B"))
