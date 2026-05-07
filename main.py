@@ -12,8 +12,7 @@ from PyQt6.QtWidgets import (
     QSplitter, QLabel, QPushButton, QComboBox, QDoubleSpinBox,
     QSpinBox, QFrame, QSizePolicy, QCheckBox, QScrollArea,
     QTableWidget, QTableWidgetItem, QHeaderView,
-    QTabWidget, QFileDialog, QMessageBox, QInputDialog,
-    QDialog, QListWidget, QDialogButtonBox, QSplashScreen,
+    QTabWidget, QSplashScreen,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QColor, QActionGroup
@@ -26,6 +25,7 @@ from motor.color import coating_color
 from ui.theme import DARK, LIGHT, build_style, is_dark, sec, muted, hdiv, vdiv
 from ui.canvases import SpectrumCanvas, DispersionCanvas, StackCanvas, EFieldCanvas
 from ui.splash import make_splash_pixmap
+from ui import dialogs
 
 import matplotlib
 matplotlib.use("QtAgg")
@@ -57,6 +57,7 @@ class StratopticWindow(QMainWindow):
         ]
         self._t = DARK if is_dark() else LIGHT
         self._worker = None
+        self._user_datasets = []
 
         self.setWindowTitle("Stratoptic")
         self.setMinimumSize(1100, 680)
@@ -950,134 +951,29 @@ class StratopticWindow(QMainWindow):
             "  ".join([f"L{i+1}={d:.1f}nm" for i,d in enumerate(thicknesses)]))
         self._calculate()
 
-    # ── Export ─────────────────────────────────────────────────────────
+    # ── Export / Import / Dialogs ───────────────────────────────────────
 
     def _export_png(self):
-        if not self._last_result: return
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export", "spectrum.png", "PNG (*.png);;PDF (*.pdf)")
-        if path: self.canvas.save(path)
+        dialogs.export_png(self, self._last_result, self.canvas)
 
     def _export_csv(self):
-        if not self._last_result: return
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export CSV", "spectrum.csv", "CSV (*.csv)")
-        if path:
-            r = self._last_result
-            np.savetxt(path, np.column_stack([r.wavelengths, r.R, r.T, r.A]),
-                       delimiter=",", header="wavelength_nm,R,T,A", comments="")
+        dialogs.export_csv(self, self._last_result)
 
     def _import_dataset(self):
-        # Format info dialog
-        fmt_msg = (
-            "<b>Supported formats:</b> CSV, TXT, DAT<br><br>"
-            "<b>Required columns:</b><br>"
-            "&nbsp;&nbsp;wavelength &nbsp; n &nbsp; [k]<br><br>"
-            "<b>Wavelength unit:</b> nm (auto-detected — if max &lt; 50, assumed µm)<br>"
-            "<b>Separator:</b> comma, semicolon, tab, or space<br>"
-            "<b>Header lines:</b> skip lines starting with <code>#</code> or non-numeric<br>"
-            "<b>Minimum:</b> 3 data points<br><br>"
-            "<b>Example (CSV):</b><br>"
-            "<code>wavelength_nm,n,k<br>"
-            "400,2.35,0.0<br>"
-            "500,2.31,0.0<br>"
-            "600,2.28,0.0</code>"
-        )
-        info = QMessageBox(self)
-        info.setWindowTitle("Import Format")
-        info.setText(fmt_msg)
-        info.setIcon(QMessageBox.Icon.Information)
-        info.setStandardButtons(
-            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
-        info.button(QMessageBox.StandardButton.Ok).setText("Choose File…")
-        if info.exec() != QMessageBox.StandardButton.Ok:
-            return
-
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Import Material Dataset", "",
-            "CSV/TXT (*.csv *.txt *.dat);;All files (*)")
-        if not path:
-            return
-        name, ok = QInputDialog.getText(self, "Material Name",
-                                        "Enter a name for this material:")
-        if not ok or not name.strip():
-            return
-        name = name.strip()
-        try:
-            mat = self.db.load_user_dataset(path, name)
-        except Exception as e:
-            QMessageBox.warning(self, "Import Failed", str(e)); return
-
-        wl0, wl1 = mat._wl_range
-        try:
-            n_pts = len(mat._interp_n.x)
-        except Exception:
-            n_pts = 0
-
-        for combo in [self.combo_mat, self.combo_inc, self.combo_sub]:
-            combo.addItem(name)
-
-        if not hasattr(self, "_user_datasets"):
-            self._user_datasets = []
-        self._user_datasets.append(name)
-
-        self.statusBar().showMessage(
-            f"Loaded: {name}  ({n_pts} points, {wl0:.0f}–{wl1:.0f} nm)")
+        combos = [self.combo_mat, self.combo_inc, self.combo_sub]
+        dialogs.import_dataset(self, self.db, combos,
+                               self._user_datasets, self.statusBar())
 
     def _manage_datasets(self):
-        datasets = getattr(self, "_user_datasets", [])
-        dlg = QDialog(self)
-        dlg.setWindowTitle("User Datasets")
-        dlg.setMinimumWidth(320)
-        vl = QVBoxLayout(dlg)
-        vl.addWidget(QLabel("Imported materials:"))
-        lst = QListWidget()
-        for name in datasets:
-            lst.addItem(name)
-        vl.addWidget(lst)
-
-        btn_del = QPushButton("Delete selected")
-        btn_del.setObjectName("rm")
-
-        def _delete():
-            row = lst.currentRow()
-            if row < 0:
-                return
-            name = lst.item(row).text()
-            key = name.lower()
-            if key in self.db._index and self.db._index[key][0].shelf == "user":
-                del self.db._index[key]
-            self._user_datasets.remove(name)
-            for combo in [self.combo_mat, self.combo_inc, self.combo_sub]:
-                idx = combo.findText(name)
-                if idx >= 0:
-                    combo.removeItem(idx)
-            lst.takeItem(row)
-            self.statusBar().showMessage(f"Removed: {name}")
-
-        btn_del.clicked.connect(_delete)
-        vl.addWidget(btn_del)
-        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        bb.rejected.connect(dlg.reject)
-        vl.addWidget(bb)
-        dlg.exec()
-
-    # ── Dialogs ────────────────────────────────────────────────────────
+        combos = [self.combo_mat, self.combo_inc, self.combo_sub]
+        dialogs.manage_datasets_dialog(self, self.db, combos,
+                                       self._user_datasets, self.statusBar())
 
     def _show_db(self):
-        lines = [f"{mats[0].name:<18} n@550={mats[0].n_ref:.4f}  k@550={mats[0].k_ref:.4f}"
-                 for mats in list(self.db._index.values())[:50]]
-        QMessageBox.information(self, "Material Database", "\n".join(lines))
+        dialogs.show_db_dialog(self, self.db)
 
     def _show_about(self):
-        QMessageBox.about(self, "About Stratoptic",
-            "Stratoptic v1.0\n\nThin Film Design & Simulation Platform\n"
-            "Byrnes (2021) TMM + RefractiveIndex.info DB\n\n"
-            "Author: Necmeddin\n"
-            "Gazi University Photonics Research Center\n\n"
-            "Byrnes, arXiv:1603.02720 (2021)\n"
-            "Johnson & Christy, Phys. Rev. B 6 (1972)\n"
-            "Born & Wolf, Principles of Optics (1999)")
+        dialogs.show_about_dialog(self)
 
 
 def main():
