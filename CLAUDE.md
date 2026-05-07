@@ -2,16 +2,21 @@
 
 ## Proje
 TMM tabanlı thin film simülasyon platformu.
-Stack: Python 3.11, PyQt6, numpy, matplotlib
+Stack: Python 3.14, PyQt6, numpy, matplotlib, tmm
 Hedef: Üniversite labları, optik kaplama firmaları
+
+## Roadmap
+Her session başında ROADMAP.md dosyasını oku — proje yol haritası ve mevcut durum orada.
 
 ## Dosya Yapısı
 - main.py          → Ana giriş + UI (refactor bekliyor)
 - motor/engine.py  → TMM core
 - motor/rii_db.py  → Refractiveindex.info entegrasyonu
-- motor/tmm_old.py → Eski TMM — audit et, muhtemelen sil
-- patch_*.py       → Audit et, aktif mi dead code mu belli değil
-- data/materials/  → Lokal malzeme JSON
+- motor/optimizer.py → Kalınlık optimizasyonu (QThread)
+- motor/color.py   → CIE renk hesaplama
+- core/state.py    → AppState (henüz entegre değil)
+- ui/theme.py      → DARK/LIGHT tema
+- ui/canvases.py   → 4 canvas sınıfı (ayrılacak)
 - data/rii_db/     → RII veritabanı
 
 ## Çalışma Kuralları
@@ -27,9 +32,10 @@ Hedef: Üniversite labları, optik kaplama firmaları
 - s ve p polarizasyon ayrı hesaplanıyor
 
 ## Öncelik Sırası
-1. Audit: patch_*.py ve tmm_old.py temizliği
-2. Refactor: UI'ı main.py'dan ayır
-3. Feature: Kalınlık optimizasyonu
+1. Temizlik: ölü kod, import hack, bare except (Faz 0)
+2. Refactor: main.py parçalama + AppState entegrasyonu (Faz 1)
+3. Canvas ayırma (Faz 2)
+4. Motor iyileştirmeleri + yeni özellikler (Faz 3+)
 
 ## Mimari Kararlar
 - State model: core/state.py — AppState QObject, tüm uygulama durumu burada tutulur
@@ -40,9 +46,12 @@ Hedef: Üniversite labları, optik kaplama firmaları
 - Optimizer: motor/optimizer.py — QThread tabanlı, signal ile progress bildirimi
 
 ## Geçmiş Hatalar
-- material_db.py eski `from tmm import Material` kullanıyordu — rii_db.py ile değiştirildi
-- visualizer.py `from tmm import TMMResult` import'u yanlış — engine.py'deki sınıflar kullanılmalı
-- Monolitik main.py (1370 sat) bakım ve test edilebilirliği çok zorlaştırıyordu
+- material_db.py eski `from tmm import Material` kullanıyordu — rii_db.py ile değiştirildi, dosya silindi
+- visualizer.py `from tmm import TMMResult` import'u yanlış — engine.py'deki sınıflar kullanılmalı, dosya silindi
+- motor/tests/test_tmm.py eski API kullanıyordu — silindi (Faz 0)
+- patch_*.py ve tmm_old.py — silindi (daha önce)
+- main.py sys.path.insert(0, 'motor') hack'i vardı — düzeltildi (Faz 0)
+- Monolitik main.py (1138 sat) bakım ve test edilebilirliği çok zorlaştırıyor
 
 ## Yapılmaması Gerekenler
 - numpy.matrix kullanma, array kullan

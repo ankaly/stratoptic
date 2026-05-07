@@ -18,14 +18,13 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QRect
 from PyQt6.QtGui import QAction, QColor, QActionGroup, QPixmap, QPainter, QFont, QBrush
 
-sys.path.insert(0, 'motor')
-from rii_db import RIIDatabase
-from engine import Layer, Structure, TMMEngine
+from motor.rii_db import RIIDatabase
+from motor.engine import Layer, Structure, TMMEngine
+from motor.optimizer import OptimizeWorker
+from motor.color import coating_color
 
 from ui.theme import DARK, LIGHT, build_style, is_dark, sec, muted, hdiv, vdiv
 from ui.canvases import SpectrumCanvas, DispersionCanvas, StackCanvas, EFieldCanvas
-from optimizer import OptimizeWorker
-from color import coating_color
 
 import matplotlib
 matplotlib.use("QtAgg")
@@ -372,7 +371,8 @@ class StratopticWindow(QMainWindow):
                 N = mats[0].N_at(550); name = mats[0].name
                 if N.imag < 0.001 and 1.0 < N.real < 2.0 and name not in inc_fixed:
                     self.combo_inc.addItem(name)
-            except: pass
+            except Exception:
+                pass
         il.addWidget(self.combo_inc)
         il.addWidget(hdiv(self._t))
 
@@ -471,7 +471,8 @@ class StratopticWindow(QMainWindow):
                 N = ml[0].N_at(550); name = ml[0].name
                 if N.imag < 0.01 and N.real > 1.0 and name not in sub_fixed:
                     self.combo_sub.addItem(name)
-            except: pass
+            except Exception:
+                pass
         il.addWidget(self.combo_sub)
         il.addWidget(hdiv(self._t))
 
@@ -722,8 +723,10 @@ class StratopticWindow(QMainWindow):
                          substrate_coherent=False)
 
     def _refresh_stack(self):
-        try: self.stack_canvas.plot(self._build_structure(), self.db)
-        except: self.stack_canvas._empty()
+        try:
+            self.stack_canvas.plot(self._build_structure(), self.db)
+        except Exception:
+            self.stack_canvas._empty()
 
     def _update_page_list(self, mat_name):
         self.combo_page.blockSignals(True)
@@ -767,7 +770,7 @@ class StratopticWindow(QMainWindow):
             self.disp_canvas.plot(mat, self.db)
             self.btabs.setCurrentWidget(self.disp_canvas)
             self._refresh_dataset_info(mat)
-        except:
+        except Exception:
             self.lbl_dataset_info.setText("")
 
     def _refresh_dataset_info(self, mat):
@@ -783,7 +786,7 @@ class StratopticWindow(QMainWindow):
                 data_str = "tabulated n"
             page = mat.page or ""
             self.lbl_dataset_info.setText(f"{page}  |  {wl_str}  |  {data_str}")
-        except:
+        except Exception:
             self.lbl_dataset_info.setText("")
 
     # ── Conditions ────────────────────────────────────────────────────
@@ -819,7 +822,8 @@ class StratopticWindow(QMainWindow):
                     self.cond_table.item(row, 3).text(),
                     float(self.cond_table.item(row, 4).text()),
                 ))
-            except: pass
+            except (ValueError, AttributeError):
+                pass
         if not conds:
             conds = [(self.spin_wl_min.value(), self.spin_wl_max.value(),
                       "T", "max", 1.0)]

@@ -237,7 +237,8 @@ class DispersionCanvas(FigureCanvas):
             wl0, wl1 = mat.wl_range_nm
             wl0 = max(wl0, 200); wl1 = min(wl1, 2500)
             if wl1-wl0 < 10: wl0, wl1 = 200, 1800
-        except: wl0, wl1 = 200, 1800
+        except Exception:
+            wl0, wl1 = 200, 1800
         wl = np.linspace(wl0, wl1, 500)
         nv = np.array([mat.N_at(w).real for w in wl])
         kv = np.array([mat.N_at(w).imag for w in wl])
@@ -339,7 +340,7 @@ class StackCanvas(FigureCanvas):
                     color = "#3A2A08" if is_dark_theme else "#FFF3CD"
                 else:
                     color = "#08354A" if is_dark_theme else "#D0EAFF"
-            except:
+            except Exception:
                 color = self.t["input"]
             alpha = 0.95 if is_film else 0.5
             edge  = self.t["accent"] if is_film else self.t["line1"]
@@ -350,8 +351,10 @@ class StackCanvas(FigureCanvas):
                 facecolor=color, edgecolor=edge,
                 linewidth=lw, alpha=alpha, zorder=2)
             ax.add_patch(rect)
-            try: nv = mat.N_at(550).real
-            except: nv = 0.0
+            try:
+                nv = mat.N_at(550).real
+            except Exception:
+                nv = 0.0
             label = (f"{mat.name}   n={nv:.3f}   d={thick:.0f} nm"
                      if thick is not None
                      else f"{mat.name}   n={nv:.3f}   ({'incident' if role=='incident' else 'substrate'})")

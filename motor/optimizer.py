@@ -1,7 +1,7 @@
 import numpy as np
 from PyQt6.QtCore import QThread, pyqtSignal
 
-from engine import TMMEngine
+from motor.engine import TMMEngine
 
 
 class OptimizeWorker(QThread):
