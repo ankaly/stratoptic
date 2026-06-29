@@ -25,6 +25,7 @@ from ui.ribbon import Ribbon, SummaryBar
 from ui.sidebar import Sidebar
 from ui.splash import make_splash_pixmap
 from ui import dialogs
+from core.state import AppState
 
 import matplotlib
 matplotlib.use("QtAgg")
@@ -39,20 +40,19 @@ class StratopticWindow(QMainWindow):
                                Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter,
                                QColor("#AAAAAA"))
         self.db = RIIDatabase("data/rii_db")
-        self._last_result = self._last_structure = None
-        self._overlay_results = []
+        self.state = AppState()
+        self.state.theme = DARK if is_dark() else LIGHT
         self._overlay_palette = [
             "#FF453A","#0A84FF","#32D74B","#FFD60A",
             "#BF5AF2","#FF9F0A","#AC8E68","#30D5C8",
         ]
-        self._t = DARK if is_dark() else LIGHT
         self._worker = None
         self._user_datasets = []
 
         self.setWindowTitle("Stratoptic")
         self.setMinimumSize(1100, 680)
         self.resize(1500, 900)
-        self.setStyleSheet(build_style(self._t))
+        self.setStyleSheet(build_style(self.state.theme))
         self._build_menu()
         self._build_ui()
         self.statusBar().showMessage(
@@ -61,14 +61,16 @@ class StratopticWindow(QMainWindow):
     # ── Theme ──────────────────────────────────────────────────────────
 
     def _set_theme(self, mode):
-        self._t = (DARK if (mode == "dark" or (mode == "auto" and is_dark()))
-                   else LIGHT)
-        self.setStyleSheet(build_style(self._t))
-        self.plot_area.apply_theme(self._t)
-        self.ribbon.btn_theme_toggle.setText("☀" if self._t is DARK else "🌙")
+        self.state.theme = (DARK if (mode == "dark" or (mode == "auto" and is_dark()))
+                            else LIGHT)
+
+    def _on_theme_changed(self, t):
+        self.setStyleSheet(build_style(t))
+        self.plot_area.apply_theme(t)
+        self.ribbon.btn_theme_toggle.setText("☀" if t is DARK else "🌙")
 
     def _toggle_theme(self):
-        self._set_theme("light" if self._t is DARK else "dark")
+        self._set_theme("light" if self.state.theme is DARK else "dark")
 
     # ── Menu ───────────────────────────────────────────────────────────
 
@@ -116,7 +118,8 @@ class StratopticWindow(QMainWindow):
         vl = QVBoxLayout(root)
         vl.setContentsMargins(0, 0, 0, 0); vl.setSpacing(0)
 
-        self.ribbon = Ribbon(self._t)
+        t = self.state.theme
+        self.ribbon = Ribbon(t)
         self.ribbon.calculate_requested.connect(self._calculate)
         self.ribbon.optimize_requested.connect(self._run_optimization)
         self.ribbon.theme_toggle_requested.connect(self._toggle_theme)
@@ -124,19 +127,19 @@ class StratopticWindow(QMainWindow):
         self.ribbon.overlay_cleared.connect(self._clear_overlay)
         vl.addWidget(self.ribbon)
 
-        self.sumbar = SummaryBar(self._t)
+        self.sumbar = SummaryBar(t)
         vl.addWidget(self.sumbar)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setChildrenCollapsible(False)
 
-        self.sidebar = Sidebar(self._t, self.db)
+        self.sidebar = Sidebar(t, self.db)
         self.sidebar.status_message.connect(self.statusBar().showMessage)
         self.sidebar.dispersion_requested.connect(self._on_dispersion)
         self.sidebar.stack_refresh_requested.connect(self._refresh_stack)
         splitter.addWidget(self.sidebar)
 
-        self.plot_area = PlotArea(self._t)
+        self.plot_area = PlotArea(t)
         splitter.addWidget(self.plot_area)
 
         splitter.setStretchFactor(0, 0)
@@ -144,6 +147,8 @@ class StratopticWindow(QMainWindow):
         splitter.setSizes([300, 1200])
         splitter.setHandleWidth(2)
         vl.addWidget(splitter)
+
+        self.state.theme_changed.connect(self._on_theme_changed)
 
     # ── Signal handlers ───────────────────────────────────────────────
 
@@ -176,17 +181,17 @@ class StratopticWindow(QMainWindow):
             result = TMMEngine(st).calculate(wl, angle=ang,
                                               polarization=pol,
                                               substrate_thickness_mm=1.0)
-            if self.ribbon.chk_overlay.isChecked() and self._last_result is not None:
-                n = len(self._overlay_results)
+            if self.ribbon.chk_overlay.isChecked() and self.state.result is not None:
+                n = len(self.state.overlay_results)
                 color = self._overlay_palette[n % len(self._overlay_palette)]
-                self._overlay_results.append((self._last_result, self._last_structure, color))
-                if len(self._overlay_results) > len(self._overlay_palette):
-                    self._overlay_results.pop(0)
-            self._last_result = result; self._last_structure = st
+                self.state.add_overlay(self.state.result, self.state.structure, color)
+            self.state.wavelengths = wl
+            self.state.structure = st
+            self.state.result = result
             self.plot_area.canvas.plot(
                 result, self.ribbon.chk_R.isChecked(),
                 self.ribbon.chk_T.isChecked(), self.ribbon.chk_A.isChecked(),
-                st, overlays=self._overlay_results)
+                st, overlays=self.state.overlay_results)
             self.sumbar.update_stats(result.R.mean(), result.T.mean(), result.A.mean())
             self.sumbar.update_swatches(result, coating_color)
             self.sumbar.lbl_info.setText(
@@ -211,15 +216,15 @@ class StratopticWindow(QMainWindow):
             self.plot_area.efield_canvas._empty()
 
     def _clear_overlay(self):
-        self._overlay_results = []
+        self.state.clear_overlays()
         self._replot()
 
     def _replot(self):
-        if self._last_result:
+        if self.state.result:
             self.plot_area.canvas.plot(
-                self._last_result, self.ribbon.chk_R.isChecked(),
+                self.state.result, self.ribbon.chk_R.isChecked(),
                 self.ribbon.chk_T.isChecked(), self.ribbon.chk_A.isChecked(),
-                self._last_structure, overlays=self._overlay_results)
+                self.state.structure, overlays=self.state.overlay_results)
 
     # ── Optimization ───────────────────────────────────────────────────
 
@@ -256,10 +261,10 @@ class StratopticWindow(QMainWindow):
     # ── Dialogs ────────────────────────────────────────────────────────
 
     def _export_png(self):
-        dialogs.export_png(self, self._last_result, self.plot_area.canvas)
+        dialogs.export_png(self, self.state.result, self.plot_area.canvas)
 
     def _export_csv(self):
-        dialogs.export_csv(self, self._last_result)
+        dialogs.export_csv(self, self.state.result)
 
     def _import_dataset(self):
         combos = [self.sidebar.combo_mat, self.sidebar.combo_inc,

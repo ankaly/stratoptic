@@ -47,10 +47,10 @@
 - [x] Menu + dialog'lar ayri (`ui/dialogs.py`)
 - [x] Splash screen ayri (`ui/splash.py`)
 
-### 1.5 AppState Entegrasyonu
-- [ ] `core/state.py` AppState'i aktif kullanima al
-- [ ] Widget'lar arasi iletisim signal/slot ile AppState uzerinden
-- [ ] `_last_result`, `_last_structure`, `_overlay_results` → AppState'e tasi
+### 1.5 AppState Entegrasyonu (TAMAMLANDI)
+- [x] `core/state.py` AppState'i aktif kullanima al
+- [x] Widget'lar arasi iletisim signal/slot ile AppState uzerinden
+- [x] `_last_result`, `_last_structure`, `_overlay_results` → AppState'e tasi
 
 ---
 
