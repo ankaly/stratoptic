@@ -219,6 +219,17 @@ class RIIMaterial:
 
         return np.array([self.N_at(float(w)) for w in wl_um * 1000.0], dtype=complex)
 
+    def export_raw_data(self) -> list:
+        """[[wl_nm, n, k], ...] sample points — for embedding user-loaded
+        materials in a saved .strat project. Only meaningful for materials
+        built from tabulated data (load_user_dataset/register_user_material)."""
+        self._load()
+        wls_um = self._interp_n.x
+        ns = self._interp_n.y
+        ks = self._interp_k.y if self._interp_k is not None else np.zeros_like(ns)
+        return [[float(w * 1000.0), float(n), float(k)]
+                for w, n, k in zip(wls_um, ns, ks)]
+
     @property
     def wl_range_nm(self) -> Tuple[float, float]:
         self._load()
@@ -526,6 +537,21 @@ class RIIDatabase:
         else:
             wls_nm = wls_raw
 
+        return self._build_user_material(name, wls_nm, ns, ks)
+
+    def register_user_material(self, name: str, data) -> "RIIMaterial":
+        """
+        Build a user material directly from [[wl_nm, n, k], ...] rows —
+        used when restoring a .strat project's embedded user_materials,
+        as opposed to load_user_dataset() which parses a file on disk.
+        """
+        arr = np.array(data, dtype=float)
+        wls_nm = arr[:, 0]
+        ns = arr[:, 1]
+        ks = arr[:, 2] if arr.shape[1] >= 3 else np.zeros(len(ns))
+        return self._build_user_material(name, wls_nm, ns, ks)
+
+    def _build_user_material(self, name, wls_nm, ns, ks) -> "RIIMaterial":
         wls_um = wls_nm / 1000.0
 
         # Sort by wavelength
