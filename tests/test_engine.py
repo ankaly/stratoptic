@@ -4,6 +4,7 @@ TMM Engine tests — energy conservation, physical laws, edge cases.
 
 import numpy as np
 import pytest
+import tmm
 
 from motor.engine import TMMEngine, Structure, Layer
 
@@ -80,4 +81,41 @@ def test_energy_conservation(air, sio2, tio2, ag, glass_bk7):
         assert max_dev < 1e-6, (
             f"Energy conservation violated: max |R+T+A-1|={max_dev:.2e} "
             f"(layers={len(layers)}, coherent={coherent}, ang={angle}, pol={pol})"
+        )
+
+
+def test_vectorized_matches_byrnes_reference(air, sio2, tio2, ag, glass_bk7):
+    """tmm_vectorized() must match Byrnes' per-wavelength coh_tmm exactly
+    (rtol=1e-9), including absorbing layers where Snell branch-cut handling
+    is easy to get wrong."""
+    scenarios = [
+        ([], 0.0, "s"),
+        ([Layer(sio2, 100.0)], 0.0, "s"),
+        ([Layer(tio2, 80.0), Layer(sio2, 120.0)], 30.0, "p"),
+        ([Layer(ag, 50.0)], 0.0, "s"),
+        ([Layer(ag, 50.0)], 45.0, "p"),
+    ]
+
+    for layers, angle, pol in scenarios:
+        st = Structure(layers=layers, incident=air, substrate=glass_bk7,
+                       substrate_coherent=True)
+        res = TMMEngine(st).calculate(WLS, angle=angle, polarization=pol)
+
+        R_ref = np.zeros(len(WLS))
+        T_ref = np.zeros(len(WLS))
+        for i, wl in enumerate(WLS):
+            n_list = ([air.N_at(wl)] + [l.material.N_at(wl) for l in layers]
+                      + [glass_bk7.N_at(wl)])
+            d_list = [np.inf] + [l.thickness for l in layers] + [np.inf]
+            out = tmm.coh_tmm(pol, n_list, d_list, np.deg2rad(angle), float(wl))
+            R_ref[i] = out['R']
+            T_ref[i] = out['T']
+
+        assert np.allclose(res.R, R_ref, rtol=1e-9, atol=1e-12), (
+            f"R mismatch vs Byrnes (layers={len(layers)}, ang={angle}, pol={pol}): "
+            f"max diff={np.abs(res.R - R_ref).max():.2e}"
+        )
+        assert np.allclose(res.T, T_ref, rtol=1e-9, atol=1e-12), (
+            f"T mismatch vs Byrnes (layers={len(layers)}, ang={angle}, pol={pol}): "
+            f"max diff={np.abs(res.T - T_ref).max():.2e}"
         )

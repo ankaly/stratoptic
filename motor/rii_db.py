@@ -198,12 +198,26 @@ class RIIMaterial:
     def N_array(self, wavelengths_nm: np.ndarray) -> np.ndarray:
         """Complex refractive index N = n + ik for an array of wavelengths [nm].
 
-        Maps N_at element-wise — some materials (Air, Sellmeier built-ins)
-        override N_at per-instance, so this must go through that hook rather
-        than re-implementing formula/interp lookup here.
+        Builtins (Air, Sellmeier presets) override this per-instance in
+        RIIDatabase._make_fixed/_make_sellmeier. For real RII data, vectorize
+        directly over the formula/interpolator rather than looping N_at per
+        point — with many layers x thousands of wavelengths that loop was the
+        actual bottleneck in TMMEngine.calculate(), not the TMM matrix math.
         """
-        wavelengths_nm = np.atleast_1d(wavelengths_nm)
-        return np.array([self.N_at(float(w)) for w in wavelengths_nm], dtype=complex)
+        self._load()
+        wl_um = np.atleast_1d(wavelengths_nm).astype(float) / 1000.0
+
+        if self._formula is not None:
+            ftype, coeffs = self._formula
+            n = _apply_formula(ftype, coeffs, wl_um)
+            return n.astype(complex)
+
+        if self._interp_n is not None:
+            n = self._interp_n(wl_um)
+            k = self._interp_k(wl_um) if self._interp_k else np.zeros_like(n)
+            return n + 1j * k
+
+        return np.array([self.N_at(float(w)) for w in wl_um * 1000.0], dtype=complex)
 
     @property
     def wl_range_nm(self) -> Tuple[float, float]:
@@ -332,6 +346,8 @@ class RIIDatabase:
         mat._loaded = True
         _n, _k = n, k
         mat.N_at = lambda wl, _n=_n, _k=_k: complex(_n, _k)
+        mat.N_array = lambda wls, _n=_n, _k=_k: np.full(
+            np.atleast_1d(wls).shape, complex(_n, _k))
         mat._wl_range = (100.0, 100000.0)
         return mat
 
@@ -346,7 +362,15 @@ class RIIDatabase:
                 if B > 0:
                     n2 += B * x**2 / (x**2 - C)
             return complex(float(np.sqrt(max(n2, 1.0))), 0.0)
+        def _n_array(wl_nm, coeffs=coeffs):
+            x = np.atleast_1d(wl_nm) / 1000.0  # nm → µm
+            n2 = np.full(x.shape, 1.0)
+            for B, C in coeffs:
+                if B > 0:
+                    n2 = n2 + B * x**2 / (x**2 - C)
+            return np.sqrt(np.maximum(n2, 1.0)).astype(complex)
         mat.N_at = _n_at
+        mat.N_array = _n_array
         mat._wl_range = (200.0, 5000.0)
         return mat
 

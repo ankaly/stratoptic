@@ -94,11 +94,6 @@ def _fresnel_vec(pol: str, n_i, n_f, th_i, th_f):
     return r, t
 
 
-def _matmul2x2(A: np.ndarray, B: np.ndarray) -> np.ndarray:
-    """A, B: (2,2,n_wl) complex — elementwise (over n_wl) 2x2 matrix product."""
-    return np.einsum('abk,bck->ack', A, B)
-
-
 def tmm_vectorized(n_stack: np.ndarray, d_stack: np.ndarray,
                     wl: np.ndarray, theta0: float, pol: str) -> tuple:
     """
@@ -112,6 +107,12 @@ def tmm_vectorized(n_stack: np.ndarray, d_stack: np.ndarray,
     pol     : 's' or 'p'
 
     Returns (R, T) — float arrays (n_wl,).
+
+    The 2x2 transfer matrix is carried as 4 plain (n_wl,) arrays (m00, m01,
+    m10, m11) and multiplied with explicit scalar formulas rather than
+    np.einsum over (2,2,n_wl) arrays — at 50 layers x 10k points the
+    einsum/array-construction overhead dominated runtime (~370ms vs ~70ms
+    for the same physics).
     """
     num_layers, n_wl = n_stack.shape
     th = _list_snell_vec(n_stack, theta0)
@@ -121,21 +122,26 @@ def tmm_vectorized(n_stack: np.ndarray, d_stack: np.ndarray,
         delta = kz * d_stack[:, None]
     delta = np.where(delta.imag > 35, delta.real + 35j, delta)
 
-    ones = np.ones(n_wl, dtype=complex)
-    zeros = np.zeros(n_wl, dtype=complex)
-
     r01, t01 = _fresnel_vec(pol, n_stack[0], n_stack[1], th[0], th[1])
-    M = np.array([[ones, r01], [r01, ones]]) / t01
+    m00, m01, m10, m11 = 1.0 / t01, r01 / t01, r01 / t01, 1.0 / t01
 
     for i in range(1, num_layers - 1):
         r_i, t_i = _fresnel_vec(pol, n_stack[i], n_stack[i + 1], th[i], th[i + 1])
-        L = np.array([[np.exp(-1j * delta[i]), zeros],
-                      [zeros, np.exp(1j * delta[i])]])
-        I = np.array([[ones, r_i], [r_i, ones]]) / t_i
-        M = _matmul2x2(M, _matmul2x2(L, I))
+        a = np.exp(-1j * delta[i])
+        b = np.exp(1j * delta[i])
+        # Mi = L_i . I_i / t_i, with L_i = diag(a, b), I_i = [[1, r_i], [r_i, 1]]
+        mi00, mi01 = a / t_i, a * r_i / t_i
+        mi10, mi11 = b * r_i / t_i, b / t_i
+        # M <- M . Mi
+        m00, m01, m10, m11 = (
+            m00 * mi00 + m01 * mi10,
+            m00 * mi01 + m01 * mi11,
+            m10 * mi00 + m11 * mi10,
+            m10 * mi01 + m11 * mi11,
+        )
 
-    r = M[1, 0] / M[0, 0]
-    t = 1.0 / M[0, 0]
+    r = m10 / m00
+    t = 1.0 / m00
 
     R = np.abs(r) ** 2
     if pol == 's':

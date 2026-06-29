@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
     QSplitter, QTableWidgetItem, QSplashScreen,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QAction, QColor, QActionGroup
 
 from motor.rii_db import RIIDatabase
@@ -48,6 +48,10 @@ class StratopticWindow(QMainWindow):
         ]
         self._worker = None
         self._user_datasets = []
+        self._live_timer = QTimer(self)
+        self._live_timer.setSingleShot(True)
+        self._live_timer.setInterval(300)
+        self._live_timer.timeout.connect(self._calculate)
 
         self.setWindowTitle("Stratoptic")
         self.setMinimumSize(1100, 680)
@@ -106,6 +110,11 @@ class StratopticWindow(QMainWindow):
         aud = QAction("Manage User Datasets…", self)
         aud.triggered.connect(self._manage_datasets); tom.addAction(aud)
 
+        sem = mb.addMenu("Settings")
+        self.live_preview_action = QAction("Live preview", self, checkable=True)
+        self.live_preview_action.setChecked(True)
+        sem.addAction(self.live_preview_action)
+
         hm = mb.addMenu("Help")
         ab = QAction("About Stratoptic", self)
         ab.triggered.connect(self._show_about); hm.addAction(ab)
@@ -136,7 +145,7 @@ class StratopticWindow(QMainWindow):
         self.sidebar = Sidebar(t, self.db)
         self.sidebar.status_message.connect(self.statusBar().showMessage)
         self.sidebar.dispersion_requested.connect(self._on_dispersion)
-        self.sidebar.stack_refresh_requested.connect(self._refresh_stack)
+        self.sidebar.stack_refresh_requested.connect(self._on_stack_changed)
         splitter.addWidget(self.sidebar)
 
         self.plot_area = PlotArea(t)
@@ -162,6 +171,11 @@ class StratopticWindow(QMainWindow):
                 self.sidebar.build_structure(), self.db)
         except Exception:
             self.plot_area.stack_canvas._empty()
+
+    def _on_stack_changed(self):
+        self._refresh_stack()
+        if self.live_preview_action.isChecked():
+            self._live_timer.start()
 
     # ── Calculation ────────────────────────────────────────────────────
 
@@ -245,14 +259,25 @@ class StratopticWindow(QMainWindow):
             self.sidebar.build_structure_opt, oi, bounds, conds,
             self._get_pol(), self.ribbon.spin_angle.value())
         self._worker.progress.connect(self.statusBar().showMessage)
+        self._worker.iteration.connect(self._on_opt_iteration)
         self._worker.finished.connect(self._on_opt_done)
         self._worker.start()
 
-    def _on_opt_done(self, thicknesses, obj_val):
-        self.ribbon.btn_opt.setEnabled(True)
+    def _apply_opt_thicknesses(self, thicknesses):
         for i, row in enumerate(self.sidebar.get_opt_idx()):
             self.sidebar.layer_table.setItem(
                 row, 1, QTableWidgetItem(f"{thicknesses[i]:.1f}"))
+
+    def _on_opt_iteration(self, thicknesses, obj_val):
+        self._apply_opt_thicknesses(thicknesses)
+        self.statusBar().showMessage(
+            f"Optimizing…  obj={obj_val:.4f}  ·  " +
+            "  ".join([f"L{i+1}={d:.1f}nm" for i, d in enumerate(thicknesses)]))
+        self._calculate()
+
+    def _on_opt_done(self, thicknesses, obj_val):
+        self.ribbon.btn_opt.setEnabled(True)
+        self._apply_opt_thicknesses(thicknesses)
         self.statusBar().showMessage(
             f"Done  ·  obj={obj_val:.4f}  ·  " +
             "  ".join([f"L{i+1}={d:.1f}nm" for i,d in enumerate(thicknesses)]))

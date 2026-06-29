@@ -7,6 +7,7 @@ from motor.engine import TMMEngine
 class OptimizeWorker(QThread):
     finished = pyqtSignal(list, float)
     progress = pyqtSignal(str)
+    iteration = pyqtSignal(list, float)
 
     def __init__(self, sf, oi, bounds, conditions, pol, angle):
         super().__init__()
@@ -24,10 +25,15 @@ class OptimizeWorker(QThread):
             total += weight * (-val if goal == "max" else val)
         return total
 
+    def _on_generation(self, xk, convergence):
+        self.iteration.emit(list(xk), float(self._cost(xk)))
+        return False  # don't request early stop
+
     def run(self):
         from scipy.optimize import differential_evolution
         self.progress.emit("Optimizing…")
         res = differential_evolution(
             self._cost, bounds=self._b,
-            maxiter=300, tol=1e-4, seed=42, workers=1, popsize=12)
+            maxiter=300, tol=1e-4, seed=42, workers=1, popsize=12,
+            callback=self._on_generation)
         self.finished.emit(list(res.x), float(res.fun))
