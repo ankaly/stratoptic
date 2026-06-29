@@ -59,6 +59,96 @@ class Structure:
 
 
 # =============================================================================
+# VECTORIZED COHERENT TMM CORE
+# =============================================================================
+# Byrnes (tmm package) coh_tmm runs one Python loop iteration per wavelength.
+# These helpers replicate its exact algorithm (interface + propagation
+# matrices, https://arxiv.org/abs/1603.02720) but broadcast every step over
+# the full wavelength axis at once — the remaining Python loop is over layers
+# only (typically 5-50), not over wavelengths (typically hundreds-thousands).
+
+def _is_forward_angle_vec(n: np.ndarray, theta: np.ndarray) -> np.ndarray:
+    ncostheta = n * np.cos(theta)
+    use_imag = np.abs(ncostheta.imag) > 1e-10
+    return np.where(use_imag, ncostheta.imag > 0, ncostheta.real > 0)
+
+
+def _list_snell_vec(n_stack: np.ndarray, theta0: float) -> np.ndarray:
+    """Vectorized Snell's law. n_stack: (num_layers, n_wl) complex."""
+    angles = np.arcsin(n_stack[0] * np.sin(theta0) / n_stack + 0j)
+    fwd0 = _is_forward_angle_vec(n_stack[0], angles[0])
+    angles[0] = np.where(fwd0, angles[0], np.pi - angles[0])
+    fwdN = _is_forward_angle_vec(n_stack[-1], angles[-1])
+    angles[-1] = np.where(fwdN, angles[-1], np.pi - angles[-1])
+    return angles
+
+
+def _fresnel_vec(pol: str, n_i, n_f, th_i, th_f):
+    cos_i, cos_f = np.cos(th_i), np.cos(th_f)
+    if pol == 's':
+        r = (n_i * cos_i - n_f * cos_f) / (n_i * cos_i + n_f * cos_f)
+        t = 2 * n_i * cos_i / (n_i * cos_i + n_f * cos_f)
+    else:
+        r = (n_f * cos_i - n_i * cos_f) / (n_f * cos_i + n_i * cos_f)
+        t = 2 * n_i * cos_i / (n_f * cos_i + n_i * cos_f)
+    return r, t
+
+
+def _matmul2x2(A: np.ndarray, B: np.ndarray) -> np.ndarray:
+    """A, B: (2,2,n_wl) complex — elementwise (over n_wl) 2x2 matrix product."""
+    return np.einsum('abk,bck->ack', A, B)
+
+
+def tmm_vectorized(n_stack: np.ndarray, d_stack: np.ndarray,
+                    wl: np.ndarray, theta0: float, pol: str) -> tuple:
+    """
+    Coherent TMM, vectorized across the wavelength axis.
+
+    n_stack : complex array (n_layers+2, n_wl) — N per layer (incl. incident
+              & exit semi-infinite media) at each wavelength
+    d_stack : float array (n_layers+2,) — thickness nm; first & last = inf
+    wl      : float array (n_wl,) — vacuum wavelength, nm
+    theta0  : angle of incidence, radians
+    pol     : 's' or 'p'
+
+    Returns (R, T) — float arrays (n_wl,).
+    """
+    num_layers, n_wl = n_stack.shape
+    th = _list_snell_vec(n_stack, theta0)
+    kz = 2 * np.pi * n_stack * np.cos(th) / wl[None, :]
+
+    with np.errstate(invalid='ignore'):
+        delta = kz * d_stack[:, None]
+    delta = np.where(delta.imag > 35, delta.real + 35j, delta)
+
+    ones = np.ones(n_wl, dtype=complex)
+    zeros = np.zeros(n_wl, dtype=complex)
+
+    r01, t01 = _fresnel_vec(pol, n_stack[0], n_stack[1], th[0], th[1])
+    M = np.array([[ones, r01], [r01, ones]]) / t01
+
+    for i in range(1, num_layers - 1):
+        r_i, t_i = _fresnel_vec(pol, n_stack[i], n_stack[i + 1], th[i], th[i + 1])
+        L = np.array([[np.exp(-1j * delta[i]), zeros],
+                      [zeros, np.exp(1j * delta[i])]])
+        I = np.array([[ones, r_i], [r_i, ones]]) / t_i
+        M = _matmul2x2(M, _matmul2x2(L, I))
+
+    r = M[1, 0] / M[0, 0]
+    t = 1.0 / M[0, 0]
+
+    R = np.abs(r) ** 2
+    if pol == 's':
+        T = (np.abs(t) ** 2 * (n_stack[-1] * np.cos(th[-1])).real
+             / (n_stack[0] * np.cos(th[0])).real)
+    else:
+        T = (np.abs(t) ** 2 * (n_stack[-1] * np.conj(np.cos(th[-1]))).real
+             / (n_stack[0] * np.conj(np.cos(th[0]))).real)
+
+    return np.clip(R, 0.0, 1.0), np.clip(T, 0.0, 1.0)
+
+
+# =============================================================================
 # RESULT
 # =============================================================================
 
@@ -112,17 +202,34 @@ class TMMEngine:
         if polarization == "unpolarized":
             return self._unpolarized(wavelengths, angle, substrate_thickness_mm)
 
-        R = np.zeros(len(wavelengths))
-        T = np.zeros(len(wavelengths))
-
-        for i, wl in enumerate(wavelengths):
-            R[i], T[i] = self._calc_single(
-                float(wl), angle, polarization,
-                substrate_thickness_mm
-            )
+        if self.st.substrate_coherent:
+            R, T = self._calc_coherent_vectorized(wavelengths, angle, polarization)
+        else:
+            R = np.zeros(len(wavelengths))
+            T = np.zeros(len(wavelengths))
+            for i, wl in enumerate(wavelengths):
+                R[i], T[i] = self._calc_single(
+                    float(wl), angle, polarization,
+                    substrate_thickness_mm
+                )
 
         A = np.clip(1.0 - R - T, 0.0, 1.0)
         return TMMResult(wavelengths, R, T, A, polarization, angle)
+
+    def _calc_coherent_vectorized(self, wavelengths: np.ndarray, angle: float,
+                                  pol: str) -> tuple:
+        st = self.st
+        wl = np.asarray(wavelengths, dtype=float)
+
+        n_stack = np.stack(
+            [st.incident.N_array(wl)] +
+            [l.material.N_array(wl) for l in st.layers] +
+            [st.substrate.N_array(wl)]
+        )
+        d_stack = np.array(
+            [np.inf] + [l.thickness for l in st.layers] + [np.inf]
+        )
+        return tmm_vectorized(n_stack, d_stack, wl, np.deg2rad(angle), pol)
 
     def _calc_single(self, wl_nm: float, angle: float, pol: str,
                      sub_thick_mm: float) -> tuple:

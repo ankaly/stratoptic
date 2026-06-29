@@ -195,6 +195,16 @@ class RIIMaterial:
 
         return complex(1.5, 0.0)  # fallback
 
+    def N_array(self, wavelengths_nm: np.ndarray) -> np.ndarray:
+        """Complex refractive index N = n + ik for an array of wavelengths [nm].
+
+        Maps N_at element-wise — some materials (Air, Sellmeier built-ins)
+        override N_at per-instance, so this must go through that hook rather
+        than re-implementing formula/interp lookup here.
+        """
+        wavelengths_nm = np.atleast_1d(wavelengths_nm)
+        return np.array([self.N_at(float(w)) for w in wavelengths_nm], dtype=complex)
+
     @property
     def wl_range_nm(self) -> Tuple[float, float]:
         self._load()
