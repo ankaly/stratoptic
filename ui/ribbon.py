@@ -15,6 +15,7 @@ class Ribbon(QWidget):
     theme_toggle_requested = pyqtSignal()
     replot_requested = pyqtSignal()
     overlay_cleared = pyqtSignal()
+    params_changed = pyqtSignal()
 
     def __init__(self, theme):
         super().__init__()
@@ -74,6 +75,11 @@ class Ribbon(QWidget):
         self.combo_pol.setFixedWidth(112)
         r2.addWidget(self.combo_pol)
         calc_l.addLayout(r2)
+
+        for w in [self.spin_wl_min, self.spin_wl_max, self.spin_pts]:
+            w.valueChanged.connect(self.params_changed)
+        self.spin_angle.valueChanged.connect(self.params_changed)
+        self.combo_pol.currentTextChanged.connect(self.params_changed)
 
         hl.addWidget(calc_w)
         hl.addSpacing(10)

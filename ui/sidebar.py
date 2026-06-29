@@ -15,6 +15,7 @@ class Sidebar(QWidget):
     status_message = pyqtSignal(str)
     dispersion_requested = pyqtSignal(object)
     stack_refresh_requested = pyqtSignal()
+    project_changed = pyqtSignal()
 
     def __init__(self, theme, db):
         super().__init__()
@@ -49,6 +50,7 @@ class Sidebar(QWidget):
                     self.combo_inc.addItem(name)
             except Exception:
                 pass
+        self.combo_inc.currentTextChanged.connect(lambda _: self.project_changed.emit())
         il.addWidget(self.combo_inc)
         il.addWidget(hdiv(theme))
 
@@ -148,6 +150,7 @@ class Sidebar(QWidget):
                     self.combo_sub.addItem(name)
             except Exception:
                 pass
+        self.combo_sub.currentTextChanged.connect(lambda _: self.project_changed.emit())
         il.addWidget(self.combo_sub)
         il.addWidget(hdiv(theme))
 
@@ -203,6 +206,30 @@ class Sidebar(QWidget):
 
     # ── Layer management ─────────────────────────────────────────────
 
+    def add_layer_row(self, material, dataset=None, thickness=100.0, optimize=False):
+        """Append a layer row. `dataset` is a page/dataset name or None for
+        the material's default. Used both by the "+ Add" button and by
+        app/project.py when restoring a saved project."""
+        row = self.layer_table.rowCount(); self.layer_table.insertRow(row)
+        mat_item = QTableWidgetItem(material)
+        mat_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+        if dataset:
+            mat_item.setData(Qt.ItemDataRole.UserRole, dataset)
+            mat_item.setToolTip(f"Dataset: {dataset}")
+        self.layer_table.setItem(row, 0, mat_item)
+        self.layer_table.setItem(row, 1, QTableWidgetItem(f"{thickness:.1f}"))
+        cw = QWidget(); cl = QHBoxLayout(cw)
+        cl.setContentsMargins(0, 0, 0, 0); cl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        chk = QCheckBox(); chk.setChecked(optimize); cl.addWidget(chk)
+        self.layer_table.setCellWidget(row, 2, cw)
+        btn = QPushButton("✕"); btn.setObjectName("rm")
+        btn.setFixedSize(26, 22); btn.clicked.connect(self._remove_layer)
+        self.layer_table.setCellWidget(row, 3, btn)
+        return row
+
+    def clear_layers(self):
+        self.layer_table.setRowCount(0)
+
     def _add_layer(self):
         mat = self.combo_mat.currentText()
         if mat.startswith("—"):
@@ -215,22 +242,9 @@ class Sidebar(QWidget):
             self.status_message.emit(f"Material error: {e}")
             return
         d = self.spin_d.value()
-        row = self.layer_table.rowCount(); self.layer_table.insertRow(row)
-        mat_item = QTableWidgetItem(mat)
-        mat_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
-        if page:
-            mat_item.setData(Qt.ItemDataRole.UserRole, page)
-            mat_item.setToolTip(f"Dataset: {page}")
-        self.layer_table.setItem(row, 0, mat_item)
-        self.layer_table.setItem(row, 1, QTableWidgetItem(f"{d:.1f}"))
-        cw = QWidget(); cl = QHBoxLayout(cw)
-        cl.setContentsMargins(0, 0, 0, 0); cl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        chk = QCheckBox(); cl.addWidget(chk)
-        self.layer_table.setCellWidget(row, 2, cw)
-        btn = QPushButton("✕"); btn.setObjectName("rm")
-        btn.setFixedSize(26, 22); btn.clicked.connect(self._remove_layer)
-        self.layer_table.setCellWidget(row, 3, btn)
+        self.add_layer_row(mat, page, d)
         self.stack_refresh_requested.emit()
+        self.project_changed.emit()
         self.status_message.emit(f"Added: {mat}  {d:.1f} nm")
 
     def _remove_layer(self):
@@ -239,6 +253,7 @@ class Sidebar(QWidget):
             if self.layer_table.cellWidget(row, 3) is btn:
                 self.layer_table.removeRow(row); break
         self.stack_refresh_requested.emit()
+        self.project_changed.emit()
 
     def _on_layer_edited(self, row, col):
         if col != 1:
@@ -259,6 +274,7 @@ class Sidebar(QWidget):
         item.setText(f"{val:.1f}")
         self.layer_table.blockSignals(False)
         self.stack_refresh_requested.emit()
+        self.project_changed.emit()
 
     def _swap_rows(self, r1, r2):
         t = self.layer_table
@@ -295,6 +311,7 @@ class Sidebar(QWidget):
         self._swap_rows(row - 1, row)
         self.layer_table.setCurrentCell(row - 1, 1)
         self.stack_refresh_requested.emit()
+        self.project_changed.emit()
 
     def _move_layer_down(self):
         row = self.layer_table.currentRow()
@@ -303,6 +320,7 @@ class Sidebar(QWidget):
         self._swap_rows(row, row + 1)
         self.layer_table.setCurrentCell(row + 1, 1)
         self.stack_refresh_requested.emit()
+        self.project_changed.emit()
 
     # ── Page / dispersion ────────────────────────────────────────────
 
@@ -367,28 +385,52 @@ class Sidebar(QWidget):
 
     # ── Conditions ───────────────────────────────────────────────────
 
+    def add_condition_row(self, wl0, wl1, metric, goal, weight):
+        row = self.cond_table.rowCount(); self.cond_table.insertRow(row)
+        self.cond_table.setItem(row, 0, QTableWidgetItem(str(wl0)))
+        self.cond_table.setItem(row, 1, QTableWidgetItem(str(wl1)))
+        self.cond_table.setItem(row, 2, QTableWidgetItem(metric))
+        self.cond_table.setItem(row, 3, QTableWidgetItem(goal))
+        self.cond_table.setItem(row, 4, QTableWidgetItem(f"{weight:.2f}"))
+        btn = QPushButton("✕"); btn.setObjectName("rm")
+        btn.setFixedSize(22, 20); btn.clicked.connect(self._remove_cond)
+        self.cond_table.setCellWidget(row, 5, btn)
+        return row
+
+    def clear_conditions(self):
+        self.cond_table.setRowCount(0)
+
+    def clear_all(self):
+        self.clear_layers()
+        self.clear_conditions()
+        self.combo_inc.setCurrentIndex(0)
+        self.combo_sub.setCurrentIndex(0)
+
     def _add_cond(self):
         wl0 = self.spin_cwl0.value(); wl1 = self.spin_cwl1.value()
         if wl0 >= wl1:
             self.status_message.emit("λ min must be < λ max")
             return
-        row = self.cond_table.rowCount(); self.cond_table.insertRow(row)
-        self.cond_table.setItem(row, 0, QTableWidgetItem(str(wl0)))
-        self.cond_table.setItem(row, 1, QTableWidgetItem(str(wl1)))
-        self.cond_table.setItem(row, 2, QTableWidgetItem(self.combo_cm.currentText()))
-        self.cond_table.setItem(row, 3, QTableWidgetItem(self.combo_cg.currentText()))
-        self.cond_table.setItem(row, 4, QTableWidgetItem(f"{self.spin_cw.value():.2f}"))
-        btn = QPushButton("✕"); btn.setObjectName("rm")
-        btn.setFixedSize(22, 20); btn.clicked.connect(self._remove_cond)
-        self.cond_table.setCellWidget(row, 5, btn)
+        self.add_condition_row(wl0, wl1, self.combo_cm.currentText(),
+                               self.combo_cg.currentText(), self.spin_cw.value())
+        self.project_changed.emit()
 
     def _remove_cond(self):
         btn = self.sender()
         for row in range(self.cond_table.rowCount()):
             if self.cond_table.cellWidget(row, 5) is btn:
                 self.cond_table.removeRow(row); break
+        self.project_changed.emit()
 
     # ── Public API ───────────────────────────────────────────────────
+
+    def set_incident(self, name):
+        idx = self.combo_inc.findText(name)
+        self.combo_inc.setCurrentIndex(idx if idx >= 0 else 0)
+
+    def set_substrate(self, name):
+        idx = self.combo_sub.findText(name)
+        self.combo_sub.setCurrentIndex(idx if idx >= 0 else 0)
 
     def get_opt_idx(self):
         return [r for r in range(self.layer_table.rowCount())
