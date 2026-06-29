@@ -152,6 +152,17 @@ class Sidebar(QWidget):
                 pass
         self.combo_sub.currentTextChanged.connect(lambda _: self.project_changed.emit())
         il.addWidget(self.combo_sub)
+
+        self.chk_thick_substrate = QCheckBox("Thick substrate (incoherent)")
+        self.chk_thick_substrate.setChecked(True)
+        self.chk_thick_substrate.setToolTip(
+            "On (default): real-world thick glass — back-surface reflection "
+            "included, no false interference fringes (Byrnes inc_tmm).\n"
+            "Off: fully coherent stack — only for freestanding/thin films "
+            "where the substrate itself should interfere.")
+        self.chk_thick_substrate.stateChanged.connect(self.stack_refresh_requested)
+        self.chk_thick_substrate.stateChanged.connect(self.project_changed)
+        il.addWidget(self.chk_thick_substrate)
         il.addWidget(hdiv(theme))
 
         # ── Optimization Conditions ──────────────────────────────────
@@ -405,6 +416,7 @@ class Sidebar(QWidget):
         self.clear_conditions()
         self.combo_inc.setCurrentIndex(0)
         self.combo_sub.setCurrentIndex(0)
+        self.chk_thick_substrate.setChecked(True)
 
     def _add_cond(self):
         wl0 = self.spin_cwl0.value(); wl1 = self.spin_cwl1.value()
@@ -452,7 +464,7 @@ class Sidebar(QWidget):
         return Structure(layers=layers,
                          incident=self.db.get(inc),
                          substrate=self.db.get(sub),
-                         substrate_coherent=False)
+                         substrate_coherent=not self.chk_thick_substrate.isChecked())
 
     def build_structure_opt(self, opt_idx, thicknesses):
         inc = self.combo_inc.currentText()
@@ -469,7 +481,7 @@ class Sidebar(QWidget):
         return Structure(layers=layers,
                          incident=self.db.get(inc),
                          substrate=self.db.get(sub),
-                         substrate_coherent=False)
+                         substrate_coherent=not self.chk_thick_substrate.isChecked())
 
     def get_conditions(self, fallback_wl_min=380, fallback_wl_max=800):
         conds = []
