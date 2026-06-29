@@ -9,10 +9,11 @@ class OptimizeWorker(QThread):
     progress = pyqtSignal(str)
     iteration = pyqtSignal(list, float)
 
-    def __init__(self, sf, oi, bounds, conditions, pol, angle):
+    def __init__(self, sf, oi, bounds, conditions, pol, angle, sub_thickness_mm=1.0):
         super().__init__()
         self._sf = sf; self._oi = oi; self._b = bounds
         self._cond = conditions; self._pol = pol; self._ang = angle
+        self._sub_thick = sub_thickness_mm
 
     def _cost(self, d):
         st = self._sf(self._oi, d); total = 0.0
@@ -20,7 +21,7 @@ class OptimizeWorker(QThread):
             wl = np.linspace(wl0, wl1, 150)
             r = TMMEngine(st).calculate(wl, angle=self._ang,
                                          polarization=self._pol,
-                                         substrate_thickness_mm=1.0)
+                                         substrate_thickness_mm=self._sub_thick)
             val = {"R": r.R, "T": r.T, "A": r.A}[metric].mean()
             total += weight * (-val if goal == "max" else val)
         return total

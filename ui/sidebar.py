@@ -163,6 +163,21 @@ class Sidebar(QWidget):
         self.chk_thick_substrate.stateChanged.connect(self.stack_refresh_requested)
         self.chk_thick_substrate.stateChanged.connect(self.project_changed)
         il.addWidget(self.chk_thick_substrate)
+
+        sub_thick_r = QHBoxLayout(); sub_thick_r.setSpacing(6)
+        sub_thick_r.addWidget(muted("Thickness:"))
+        self.spin_sub_thick = QDoubleSpinBox()
+        self.spin_sub_thick.setRange(0.01, 50.0)
+        self.spin_sub_thick.setValue(1.0)
+        self.spin_sub_thick.setDecimals(2)
+        self.spin_sub_thick.setSuffix(" mm")
+        self.spin_sub_thick.setFixedWidth(92)
+        self.spin_sub_thick.valueChanged.connect(self.stack_refresh_requested)
+        self.spin_sub_thick.valueChanged.connect(self.project_changed)
+        self.chk_thick_substrate.toggled.connect(self.spin_sub_thick.setEnabled)
+        sub_thick_r.addWidget(self.spin_sub_thick)
+        sub_thick_r.addStretch()
+        il.addLayout(sub_thick_r)
         il.addWidget(hdiv(theme))
 
         # ── Optimization Conditions ──────────────────────────────────
@@ -417,6 +432,7 @@ class Sidebar(QWidget):
         self.combo_inc.setCurrentIndex(0)
         self.combo_sub.setCurrentIndex(0)
         self.chk_thick_substrate.setChecked(True)
+        self.spin_sub_thick.setValue(1.0)
 
     def _add_cond(self):
         wl0 = self.spin_cwl0.value(); wl1 = self.spin_cwl1.value()

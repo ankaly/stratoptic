@@ -349,7 +349,7 @@ class StratopticWindow(QMainWindow):
             pol = self._get_pol(); ang = self.ribbon.spin_angle.value()
             result = TMMEngine(st).calculate(wl, angle=ang,
                                               polarization=pol,
-                                              substrate_thickness_mm=1.0)
+                                              substrate_thickness_mm=self.sidebar.spin_sub_thick.value())
             if self.ribbon.chk_overlay.isChecked() and self.state.result is not None:
                 n = len(self.state.overlay_results)
                 color = self._overlay_palette[n % len(self._overlay_palette)]
@@ -412,7 +412,8 @@ class StratopticWindow(QMainWindow):
         self.statusBar().showMessage(f"Optimizing {len(oi)} layer(s)  ·  {cs}")
         self._worker = OptimizeWorker(
             self.sidebar.build_structure_opt, oi, bounds, conds,
-            self._get_pol(), self.ribbon.spin_angle.value())
+            self._get_pol(), self.ribbon.spin_angle.value(),
+            self.sidebar.spin_sub_thick.value())
         self._worker.progress.connect(self.statusBar().showMessage)
         self._worker.iteration.connect(self._on_opt_iteration)
         self._worker.finished.connect(self._on_opt_done)

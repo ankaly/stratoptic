@@ -63,6 +63,7 @@ def to_dict(name, sidebar, ribbon, db, user_datasets):
             "angle":  ribbon.spin_angle.value(),
             "pol":    ribbon.combo_pol.currentText(),
             "thick_substrate": sidebar.chk_thick_substrate.isChecked(),
+            "substrate_thickness_mm": sidebar.spin_sub_thick.value(),
         },
         "conditions": conditions,
         "user_materials": user_materials,
@@ -116,6 +117,7 @@ def from_dict(data, sidebar, ribbon, db, user_datasets, status_bar=None):
         if idx >= 0:
             ribbon.combo_pol.setCurrentIndex(idx)
     sidebar.chk_thick_substrate.setChecked(p.get("thick_substrate", True))
+    sidebar.spin_sub_thick.setValue(p.get("substrate_thickness_mm", 1.0))
 
     sidebar.stack_refresh_requested.emit()
     return data.get("name", "Untitled")
