@@ -11,6 +11,22 @@ from motor.engine import TMMEngine, Structure, Layer
 WLS = np.linspace(400, 800, 40)  # nm, coarser for speed
 
 
+def test_default_substrate_is_incoherent(air, glass_bk7):
+    """Structure()'s default (substrate_coherent=False, matching
+    Sidebar.build_structure()'s default 'Thick substrate' checkbox=on) must
+    include back-surface reflection (~8% for bare BK7), not the single-
+    interface ~4% a fully coherent calc would give — and must not show
+    coherent interference fringes vs wavelength for a thick substrate."""
+    st = Structure(layers=[], incident=air, substrate=glass_bk7)  # default
+    assert st.substrate_coherent is False
+    res = TMMEngine(st).calculate(WLS, polarization="unpolarized")
+    assert np.allclose(res.R, 0.081, atol=0.01), (
+        f"Bare glass R should be ~8% (front+back), got mean={res.R.mean():.4f}")
+    assert res.R.std() < 0.002, (
+        "Incoherent substrate R should be flat vs wavelength, not fringing "
+        f"(std={res.R.std():.4f})")
+
+
 def test_air_only(air):
     """No film layers, incident=air, substrate=air -> R~0, T~1."""
     st = Structure(layers=[], incident=air, substrate=air,
