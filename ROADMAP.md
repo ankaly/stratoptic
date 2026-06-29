@@ -69,13 +69,22 @@
 ## FAZA 3 — Motor Iyilestirmeleri (Oncelik: Orta)
 
 ### 3.1 Engine Performans
-- [ ] `engine.py` _calc_single for-loop'u → vectorize (tmm API'si elverirse)
+- [x] `engine.py` _calc_single for-loop'u → vectorize (coherent path, `tmm_vectorized()`)
 - [ ] RIIDatabase index'ini pickle cache ile hizlandir (startup suresi)
-- [ ] Benchmark: mevcut vs optimize edilmis (benchmark.py zaten var)
+- [x] Benchmark: mevcut vs optimize edilmis (`tests/benchmark.py` parametrik matris + JSON baseline)
+
+**C++ core karari (GATE) — SONUC: GEREKMIYOR (henuz).**
+Olculen rakamlar (`tests/benchmark_baseline.json`): 500pt/10kat=0.64ms,
+500pt/20kat=1.13ms, 10000pt/50kat=43.3ms. Faz 7 Monte Carlo tolerans
+analizi icin gercekci tek-ornek maliyeti (~5-20 katman, ~200-500 nokta)
+~0.4-1.1ms — 10^5 tekrar ~100s, QThread'de arka planda kabul edilebilir.
+Faz 7 baslayinca gercek MC profili olculup bu karar yeniden
+degerlendirilmeli; numpy yetersiz cikarsa `motor/engine_native.py`
+(pybind11+Eigen, `try: from . import _native` fallback) ile devam.
 
 ### 3.2 Optimizer Gelistirme
 - [ ] Coklu algoritma destegi (differential_evolution, scipy.optimize.minimize, basin-hopping)
-- [ ] Iterasyon bazli progress signal (mevcut sadece "Optimizing..." gosteriyor)
+- [x] Iterasyon bazli progress signal (`OptimizeWorker.iteration`, her DE jenerasyonunda emit)
 - [ ] Constraint destegi (min/max R/T belirli wl araliginda)
 - [ ] Sonuc gecmisi (onceki optimizasyon sonuclarini karsilastir)
 
