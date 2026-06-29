@@ -5,13 +5,15 @@ Author      : Necmeddin
 Institution : Gazi University, Department of Photonics
 """
 
+import os
 import sys
 import numpy as np
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
     QSplitter, QTableWidgetItem, QSplashScreen,
+    QFileDialog, QMessageBox, QInputDialog,
 )
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QSettings
 from PyQt6.QtGui import QAction, QColor, QActionGroup
 
 from motor.rii_db import RIIDatabase
@@ -26,6 +28,10 @@ from ui.sidebar import Sidebar
 from ui.splash import make_splash_pixmap
 from ui import dialogs
 from core.state import AppState
+from app import project as project_io
+
+RECENT_FILES_KEY = "recentFiles"
+MAX_RECENT_FILES = 10
 
 import matplotlib
 matplotlib.use("QtAgg")
@@ -53,12 +59,18 @@ class StratopticWindow(QMainWindow):
         self._live_timer.setInterval(300)
         self._live_timer.timeout.connect(self._calculate)
 
-        self.setWindowTitle("Stratoptic")
+        self._settings = QSettings()
+        self._project_path = None
+        self._project_name = "Untitled"
+        self._dirty = False
+        self._loading_project = False
+
         self.setMinimumSize(1100, 680)
         self.resize(1500, 900)
         self.setStyleSheet(build_style(self.state.theme))
         self._build_menu()
         self._build_ui()
+        self._update_title()
         self.statusBar().showMessage(
             "Stratoptic v1.0  ·  Licensed for: Gazi University Photonics Research Center")
 
@@ -81,6 +93,26 @@ class StratopticWindow(QMainWindow):
     def _build_menu(self):
         mb = self.menuBar()
         fm = mb.addMenu("File")
+        for txt, sc, fn in [
+            ("New",      "Ctrl+N", self._new_project),
+            ("Open…",    "Ctrl+O", self._open_project),
+        ]:
+            a = QAction(txt, self)
+            if sc: a.setShortcut(sc)
+            a.triggered.connect(fn); fm.addAction(a)
+
+        self.recent_menu = fm.addMenu("Open Recent")
+        self._populate_recent_menu()
+
+        for txt, sc, fn in [
+            ("Save",     "Ctrl+S",       self._save_project),
+            ("Save As…", "Ctrl+Shift+S", self._save_project_as),
+        ]:
+            a = QAction(txt, self)
+            if sc: a.setShortcut(sc)
+            a.triggered.connect(fn); fm.addAction(a)
+        fm.addSeparator()
+
         for txt, sc, fn in [
             ("Export Spectrum (PNG)…", "Ctrl+E", self._export_png),
             ("Export Data (CSV)…",     None,     self._export_csv),
@@ -119,6 +151,127 @@ class StratopticWindow(QMainWindow):
         ab = QAction("About Stratoptic", self)
         ab.triggered.connect(self._show_about); hm.addAction(ab)
 
+    # ── Project (save/load) ─────────────────────────────────────────────
+
+    def _mark_dirty(self):
+        if self._loading_project:
+            return
+        self._dirty = True
+        self._update_title()
+
+    def _update_title(self):
+        star = "*" if self._dirty else ""
+        self.setWindowTitle(f"Stratoptic — {self._project_name}{star}")
+
+    def _confirm_discard_changes(self) -> bool:
+        """True if it's OK to proceed (no unsaved changes, or user chose to
+        discard/save them). False if the caller should abort."""
+        if not self._dirty:
+            return True
+        resp = QMessageBox.question(
+            self, "Unsaved Changes",
+            f"\"{self._project_name}\" has unsaved changes. Save before continuing?",
+            QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard
+            | QMessageBox.StandardButton.Cancel)
+        if resp == QMessageBox.StandardButton.Save:
+            return self._save_project()
+        return resp == QMessageBox.StandardButton.Discard
+
+    def _add_recent_file(self, path):
+        recent = self._settings.value(RECENT_FILES_KEY, [], type=list)
+        recent = [p for p in recent if p != path]
+        recent.insert(0, path)
+        self._settings.setValue(RECENT_FILES_KEY, recent[:MAX_RECENT_FILES])
+        self._populate_recent_menu()
+
+    def _populate_recent_menu(self):
+        self.recent_menu.clear()
+        recent = self._settings.value(RECENT_FILES_KEY, [], type=list)
+        if not recent:
+            empty = QAction("(no recent files)", self)
+            empty.setEnabled(False)
+            self.recent_menu.addAction(empty)
+            return
+        for path in recent:
+            a = QAction(os.path.basename(path), self)
+            a.setToolTip(path)
+            a.triggered.connect(lambda checked, p=path: self._open_path(p))
+            self.recent_menu.addAction(a)
+
+    def _new_project(self):
+        if not self._confirm_discard_changes():
+            return
+        self._loading_project = True
+        self.sidebar.clear_all()
+        self._loading_project = False
+        self._project_path = None
+        self._project_name = "Untitled"
+        self._dirty = False
+        self._update_title()
+        self.statusBar().showMessage("New project.")
+
+    def _open_project(self):
+        if not self._confirm_discard_changes():
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open Project", "", "Stratoptic Project (*.strat);;All files (*)")
+        if path:
+            self._open_path(path)
+
+    def _open_path(self, path):
+        if not self._confirm_discard_changes():
+            return
+        self._loading_project = True
+        try:
+            name = project_io.load(path, self.sidebar, self.ribbon, self.db,
+                                   self._user_datasets, self.statusBar())
+        except Exception as e:
+            QMessageBox.warning(self, "Open Failed", str(e))
+            return
+        finally:
+            self._loading_project = False
+        self._project_path = path
+        self._project_name = name
+        self._dirty = False
+        self._update_title()
+        self._add_recent_file(path)
+        self.statusBar().showMessage(f"Opened: {path}")
+        self._calculate()
+
+    def _save_project(self) -> bool:
+        if self._project_path is None:
+            return self._save_project_as()
+        try:
+            project_io.save(self._project_path, self._project_name,
+                            self.sidebar, self.ribbon, self.db, self._user_datasets)
+        except Exception as e:
+            QMessageBox.warning(self, "Save Failed", str(e))
+            return False
+        self._dirty = False
+        self._update_title()
+        self._add_recent_file(self._project_path)
+        self.statusBar().showMessage(f"Saved: {self._project_path}")
+        return True
+
+    def _save_project_as(self) -> bool:
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save Project As", f"{self._project_name}.strat",
+            "Stratoptic Project (*.strat)")
+        if not path:
+            return False
+        name, ok = QInputDialog.getText(
+            self, "Project Name", "Name:", text=self._project_name)
+        if ok and name.strip():
+            self._project_name = name.strip()
+        self._project_path = path
+        return self._save_project()
+
+    def closeEvent(self, event):
+        if self._confirm_discard_changes():
+            event.accept()
+        else:
+            event.ignore()
+
     # ── UI assembly ────────────────────────────────────────────────────
 
     def _build_ui(self):
@@ -134,6 +287,7 @@ class StratopticWindow(QMainWindow):
         self.ribbon.theme_toggle_requested.connect(self._toggle_theme)
         self.ribbon.replot_requested.connect(self._replot)
         self.ribbon.overlay_cleared.connect(self._clear_overlay)
+        self.ribbon.params_changed.connect(self._mark_dirty)
         vl.addWidget(self.ribbon)
 
         self.sumbar = SummaryBar(t)
@@ -146,6 +300,7 @@ class StratopticWindow(QMainWindow):
         self.sidebar.status_message.connect(self.statusBar().showMessage)
         self.sidebar.dispersion_requested.connect(self._on_dispersion)
         self.sidebar.stack_refresh_requested.connect(self._on_stack_changed)
+        self.sidebar.project_changed.connect(self._mark_dirty)
         splitter.addWidget(self.sidebar)
 
         self.plot_area = PlotArea(t)
@@ -313,6 +468,7 @@ class StratopticWindow(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("Stratoptic")
+    app.setOrganizationName("GaziPhotonics")
 
     splash = QSplashScreen(make_splash_pixmap())
     splash.show()
